@@ -1,0 +1,19 @@
+experiment_name: ssl_pretrain_baseline
+seed: 42
+
+dataset:
+  name: cifar10
+  root: data/raw/cifar10
+
+model:
+  backbone: resnet18
+  embedding_dim: 128
+
+training:
+  method: simclr
+  epochs: 100
+  batch_size: 128
+  lr: 0.1
+
+logging:
+  output_dir: results/self_supervised

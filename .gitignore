@@ -29,6 +29,8 @@ ENV/
 # Jupyter
 #################################
 .ipynb_checkpoints/
+!notebooks/
+!notebooks/**/*.ipynb
 
 #################################
 # Tests / coverage
@@ -81,10 +83,12 @@ dist/
 #################################
 # Data (ignore heavy datasets)
 #################################
-data/images/*
-data/annotations/*
-!data/images/.gitkeep
-!data/annotations/.gitkeep
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
 
 #################################
 # Report (keep slides + notes, ignore temp)
@@ -107,6 +111,5 @@ report/**/*.fls
 #################################
 outputs/
 results/
-runs/
 models/
 checkpoints/

@@ -1,0 +1,19 @@
+experiment_name: ttt_baseline_rotation
+seed: 42
+
+dataset:
+  name: cifar10c
+  root: data/raw/cifar10c
+
+model:
+  backbone: resnet18
+  num_classes: 10
+
+adaptation:
+  method: ttt
+  self_supervised_task: rotation
+  steps_per_batch: 1
+  lr: 0.001
+
+logging:
+  output_dir: results/test_time_training
