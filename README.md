@@ -93,3 +93,11 @@ For example:
 data/raw/cifar10c/CIFAR-10-C/shot_noise.npy
 data/raw/cifar10c/CIFAR-10-C/labels.npy
 ```
+
+Make sure this exact nested folder exists before running TTT:
+
+```text
+data/raw/cifar10c/CIFAR-10-C/
+```
+
+The repository tracks only `data/raw/.gitkeep`. Dataset files are ignored by git.
