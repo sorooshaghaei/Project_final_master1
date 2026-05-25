@@ -1,0 +1,27 @@
+Final terminal output used in the report.
+
+Self-supervised run:
+- task: self_supervised
+- config: configs/self_supervised.yaml
+- device: mps
+- epochs: 100
+- epoch 1 loss: 5.6214
+- epoch 100 loss: 4.6586
+- linear evaluation accuracy: 67.05%
+- saved classifier: results/self_supervised/classifier.pt
+- saved backbone: results/self_supervised/simclr_backbone.pt
+- saved source stats: results/self_supervised/source_stats.pt
+
+Failed official CIFAR-10-C attempt:
+- task: test_time_training
+- config: configs/test_time_training.yaml
+- missing file: data/raw/cifar10c/CIFAR-10-C/shot_noise.npy
+- error: FileNotFoundError
+
+Final available TTT run:
+- task: test_time_training
+- config: configs/test_time_training.yaml
+- device: mps
+- baseline accuracy: 48.34%
+- ActMAD TTT accuracy: 55.78%
+- improvement: +7.44 percentage points

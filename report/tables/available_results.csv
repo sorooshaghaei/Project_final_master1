@@ -1,0 +1,8 @@
+experiment,value
+self_supervised_epochs,100
+initial_simclr_loss,5.6214
+final_simclr_loss,4.6586
+linear_evaluation_accuracy_percent,67.05
+baseline_accuracy_percent,48.34
+actmad_ttt_accuracy_percent,55.78
+improvement_percentage_points,7.44
