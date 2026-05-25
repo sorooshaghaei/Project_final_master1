@@ -12,13 +12,7 @@ Self-supervised run:
 - saved backbone: results/self_supervised/simclr_backbone.pt
 - saved source stats: results/self_supervised/source_stats.pt
 
-Failed official CIFAR-10-C attempt:
-- task: test_time_training
-- config: configs/test_time_training.yaml
-- missing file: data/raw/cifar10c/CIFAR-10-C/shot_noise.npy
-- error: FileNotFoundError
-
-Final available TTT run:
+Configured TTT run:
 - task: test_time_training
 - config: configs/test_time_training.yaml
 - device: mps
