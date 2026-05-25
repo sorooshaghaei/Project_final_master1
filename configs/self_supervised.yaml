@@ -3,7 +3,8 @@ seed: 42
 
 dataset:
   name: cifar10
-  root: data/raw/cifar10
+  root: data/raw
+  download: true
 
 model:
   backbone: resnet18
@@ -12,8 +13,15 @@ model:
 training:
   method: simclr
   epochs: 100
-  batch_size: 128
-  lr: 0.1
+  batch_size: 256 #128 -> 256 pour une meilleure convergence
+  lr: 0.03
+
+source_stats:
+  compute: true
+  save_path: results/self_supervised/source_stats.pt
+  loader: val
 
 logging:
   output_dir: results/self_supervised
+  save_backbone: true
+  backbone_path: results/self_supervised/simclr_backbone.pt
