@@ -49,12 +49,12 @@ Project_final_master1/
 
 ## Run
 ```bash
-python run.py --task test_time_training --config configs/test_time_training.yaml
 python run.py --task self_supervised --config configs/self_supervised.yaml
+python run.py --task test_time_training --config configs/test_time_training.yaml
 ```
 
 Short aliases are also accepted:
 ```bash
-python run.py --task ttt --config configs/test_time_training.yaml
 python run.py --task ssl --config configs/self_supervised.yaml
+python run.py --task ttt --config configs/test_time_training.yaml
 ```
