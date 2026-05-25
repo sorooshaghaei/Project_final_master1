@@ -1,4 +1,4 @@
-experiment_name: ttt_actmad_cifar10c
+experiment_name: ttt_actmad_cifar10c_severity3
 seed: 42
 
 dataset:
@@ -13,7 +13,7 @@ dataset:
     - shot_noise
     - fog
     - brightness
-  severity: 5
+  severity: 3
   # use 64 if memory allows; use 16 if MPS runs out of memory
   batch_size: 32
   num_workers: 0
