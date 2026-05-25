@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # Évaluer chaque corruption
     for corruption in CORRUPTIONS:
         loader = build_cifar10c_loader(
-            root="data/raw/cifar10c",
+            root="data/raw",
             corruption=corruption,
             severity=SEVERITY,
             batch_size=16,

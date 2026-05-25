@@ -3,7 +3,7 @@ seed: 42
 
 dataset:
   name: cifar10c
-  root: data/raw/cifar10c
+  root: data/raw
   download: false
   corruption: shot_noise #brightness(-) #fog(+), frost(-), shot_noise(+), gaussian_noise(+)
   severity: 5

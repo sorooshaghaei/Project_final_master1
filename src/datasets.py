@@ -82,7 +82,7 @@ def get_dataset_spec(name: str) -> DatasetSpec:
     registry = {
         # CIFAR-10 root should be data/raw/cifar-10-batches-py
         "cifar10": DatasetSpec(name="cifar10", root="data/raw", num_classes=10),
-        "cifar10c": DatasetSpec(name="cifar10c", root="data/raw/cifar10c", num_classes=10),
+        "cifar10c": DatasetSpec(name="cifar10c", root="data/raw", num_classes=10),
         "imagenet_c": DatasetSpec(name="imagenet_c", root="data/raw/imagenet_c", num_classes=1000),
     }
     if name not in registry:
@@ -284,6 +284,25 @@ CIFAR10C_CORRUPTIONS = [
     "jpeg_compression",
 ]
 
+
+def _resolve_cifar10c_dir(root: str) -> Path:
+    root_path = Path(root)
+    candidates = [root_path / "CIFAR-10-C"]
+    if root_path.name == "CIFAR-10-C":
+        candidates.append(root_path)
+
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+
+    searched = "\n  - ".join(str(candidate) for candidate in candidates)
+    raise FileNotFoundError(
+        "CIFAR-10-C directory not found.\n"
+        f"Searched:\n  - {searched}\n"
+        "Set dataset.root to the parent directory that contains CIFAR-10-C "
+        "(for this project: data/raw)."
+    )
+
 def build_cifar10c_loader(
     root: str,
     corruption: str,
@@ -301,8 +320,13 @@ def build_cifar10c_loader(
         raise ValueError(f"Sévérité doit être entre 1 et 5")
     
     # charger les données et labels
-    data_path = Path(root) / "CIFAR-10-C" / f"{corruption}.npy"
-    labels_path = Path(root) / "CIFAR-10-C" / "labels.npy"
+    cifar10c_dir = _resolve_cifar10c_dir(root)
+    data_path = cifar10c_dir / f"{corruption}.npy"
+    labels_path = cifar10c_dir / "labels.npy"
+    missing_paths = [path for path in (data_path, labels_path) if not path.exists()]
+    if missing_paths:
+        missing = "\n  - ".join(str(path) for path in missing_paths)
+        raise FileNotFoundError(f"Missing CIFAR-10-C file(s):\n  - {missing}")
 
     data = np.load(data_path, mmap_mode="r") # shape (50000, 32, 32, 3), uint8
     labels = np.load(labels_path, mmap_mode="r") # shape (50000,), int64
