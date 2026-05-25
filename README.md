@@ -1,205 +1,65 @@
-# Test-Time Training with Self-Supervised Learning
-
-M1 TER project on test-time training for image classification under distribution shift.
-
-The experiments use CIFAR-10 for self-supervised pretraining and CIFAR-10-C for
-corruption robustness evaluation. The current implementation trains a SimCLR
-backbone, fits a linear classifier on frozen features, saves source activation
-statistics, and evaluates ActMAD adaptation at test time.
+# Project_final_master1
+TER M1 project focused on Test-Time Training and Self-Supervised Learning.
 
 ## Authors
-
 Rayane KHATIM, Mehdi AGHAEI  
 Universite Paris Cite
 
-## Repository
-
-```text
+## Clean Structure
+```
 Project_final_master1/
-├── configs/        Experiment configurations
-├── data/           Local datasets
-├── docs/           Project notes and supporting documents
-├── notebooks/      Exploration notebooks
-├── papers/         Reference papers
-├── presentation/   Presentation slides
-├── report/         Final report, figures, logs, and result tables
-├── results/        Saved checkpoints and source statistics
-├── scripts/        Utility scripts
-├── src/            Training, adaptation, datasets, and metrics
-├── run.py          Main experiment entrypoint
+├── README.md
 ├── LICENSE
-└── README.md
+├── run.py
+├── papers/
+│   ├── 1_sun20.pdf
+│   ├── 3_When_test_time_Adaptation.pdf
+│   └── TER2.pdf
+├── docs/
+│   └── project_tracking.md
+├── notebooks/
+│   ├── basicUnderstanding.ipynb
+│   └── choose_paper_for_TER.ipynb
+├── src/
+│   ├── __init__.py
+│   ├── datasets.py
+│   ├── test_time_training.py
+│   ├── self_supervised.py
+│   └── metrics.py
+├── configs/
+│   ├── test_time_training.yaml
+│   └── self_supervised.yaml
+└── data/
+    ├── raw/
+    ├── interim/
+    └── processed/
 ```
 
-Main source files:
+## What Each Part Means
+- `papers/`: your TER PDFs and reference papers.
+- `docs/project_tracking.md`: links for presentations/progress PPTs + weekly decisions.
+- `notebooks/`: exploration notebooks and paper-choice notebook.
+- `src/test_time_training.py`: code skeleton for test-time adaptation/training.
+- `src/self_supervised.py`: code skeleton for self-supervised training.
+- `src/datasets.py`: dataset metadata/registry.
+- `src/metrics.py`: evaluation helpers (accuracy, etc.).
+- `configs/*.yaml`: experiment parameters (model, data path, hyperparameters).
+- `data/raw`, `data/interim`, `data/processed`: dataset lifecycle.
+- `run.py`: single entrypoint to run either track.
 
-- `src/self_supervised.py`: SimCLR model, pretraining, linear evaluation, and source-statistics export.
-- `src/test_time_training.py`: ActMAD source statistics, adaptation loss, and TTT evaluation adapter.
-- `src/datasets.py`: CIFAR-10 and CIFAR-10-C dataloaders.
-- `src/metrics.py`: evaluation metrics.
-
-## Data
-
-CIFAR-10 is loaded from:
-
-```text
-data/raw/cifar-10-batches-py/
-```
-
-CIFAR-10-C is expected at:
-
-```text
-data/raw/CIFAR-10-C/
-```
-
-The selected CIFAR-10-C corruption and severity are set in:
-
-```text
-configs/test_time_training.yaml
-```
-
-## Setup
-
-From the project directory:
-
+## Run
 ```bash
-source ../.venv/bin/activate
-```
-
-Install the required Python packages if the environment has not already been prepared:
-
-```bash
-pip install torch torchvision numpy pyyaml
-```
-
-## Running Experiments
-
-Run self-supervised training first:
-
-```bash
+cd Project_final_master1
 python run.py --task self_supervised --config configs/self_supervised.yaml
+
+Run `self_supervised` first. It creates the files expected by TTT:
+`results/self_supervised/simclr_backbone.pt`,
+`results/self_supervised/classifier.pt`, and
+`results/self_supervised/source_stats.pt`.
 ```
 
-This writes:
-
-```text
-results/self_supervised/simclr_backbone.pt
-results/self_supervised/classifier.pt
-results/self_supervised/source_stats.pt
-```
-
-Then run test-time training:
-
-```bash
-python run.py --task test_time_training --config configs/test_time_training.yaml
-```
-
-Short task names are also supported:
-
+Short aliases are also accepted:
 ```bash
 python run.py --task ssl --config configs/self_supervised.yaml
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
-
-## Smoke Runs
-
-Small configurations are available for quick checks:
-
-```bash
-python run.py --task ssl --config configs/smoke_self_supervised.yml
-python run.py --task ttt --config configs/smoke_test_time_training.yml
-```
-
-The smoke TTT run expects the smoke SSL checkpoints in:
-
-```text
-results/smoke/self_supervised/
-```
-
-## Report
-
-The final report is in:
-
-```text
-report/report.pdf
-```
-
-Supporting outputs are stored in:
-
-```text
-report/figures/
-report/logs/
-report/tables/
-```
-
-This step trains the SimCLR backbone, saves the best and last checkpoints, trains the linear classifier on frozen features, and computes source activation statistics for TTT.
-
-## Run TTT Evaluation
-
-```bash
-python run.py --task test_time_training --config configs/test_time_training.yaml
-```
-
-Alias:
-
-```bash
-python run.py --task ttt --config configs/test_time_training.yaml
-```
-
-The default TTT config uses severity 5, which is a hard corruption setting.
-
-To run the same evaluation at moderate severity:
-
-```bash
-python run.py --task test_time_training --config configs/test_time_training_severity3.yaml
-```
-
-Severity 3 is moderate corruption. Severity 5 is hard corruption.
-
-## Run TTT Steps Sweep
-
-```bash
-python scripts/sweep_ttt_steps.py
-```
-
-The sweep compares `steps_per_batch = 3, 5, 10` using the same backbone, classifier, corruptions, severity, batch size, and adaptation learning rate.
-
-## Extra Corruption Evaluation
-
-```bash
-python scripts/eval_corruption.py
-```
-
-This script evaluates the full list of CIFAR-10-C corruption names with the same local fallback behavior.
-
-## Outputs
-
-```text
-results/self_supervised/training_log.csv
-results/self_supervised/best_backbone.pt
-results/self_supervised/last_backbone.pt
-results/self_supervised/simclr_backbone.pt
-results/self_supervised/classifier.pt
-results/self_supervised/source_stats.pt
-results/test_time_training/results.csv
-results/test_time_training/ttt_steps_sweep.csv
-```
-
-The `results/` folder is ignored by Git because it contains generated checkpoints, logs, and evaluation outputs.
-
-## Report
-
-The report source is in:
-
-```text
-report/report.tex
-report/references.bib
-```
-
-The compiled report is:
-
-```text
-report/report.pdf
-```
-
-The report only states measured results from the project runs. New experiments should be added after rerunning the corresponding commands.

@@ -1,22 +1,13 @@
-experiment_name: ttt_actmad_cifar10c
+experiment_name: ttt_baseline_rotation
 seed: 42
 
 dataset:
   name: cifar10c
-  root: data/raw
+  root: data/raw/cifar10c
   download: false
-  allow_synthetic_fallback: true
-  print_fallback_warning_once: true
-  corruption: shot_noise
-  corruptions:
-    - gaussian_noise
-    - shot_noise
-    - fog
-    - brightness
+  corruption: shot_noise #brightness(-) #fog(+), frost(-), shot_noise(+), gaussian_noise(+)
   severity: 5
-  # use 64 if memory allows; use 16 if MPS runs out of memory
-  batch_size: 32
-  num_workers: 0
+  batch_size: 16
   rotation_shift:
     enabled: false
     mode: random
@@ -27,15 +18,13 @@ dataset:
 model:
   backbone: resnet18
   num_classes: 10
-  checkpoint: results/self_supervised/best_backbone.pt
+  checkpoint: results/self_supervised/simclr_backbone.pt
 
 adaptation:
   method: actmad
   self_supervised_task: actmad
-  steps_per_batch: 5
+  steps_per_batch: 10
   lr: 0.0001
-  use_safe_ttt: true
-  max_allowed_confidence_drop: 0.05
   source_stats_path: results/self_supervised/source_stats.pt
 
 logging:

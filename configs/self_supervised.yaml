@@ -1,4 +1,4 @@
-experiment_name: ssl_pretrain_early_stopping
+experiment_name: ssl_pretrain_baseline
 seed: 42
 
 dataset:
@@ -12,17 +12,9 @@ model:
 
 training:
   method: simclr
-  max_epochs: 200
-  patience: 40
-  min_delta: 0.0001
-  batch_size: 256
-  lr: 0.03
-  temperature: 0.5
-
-linear_eval:
   epochs: 100
-  lr: 0.001
-  weight_decay: 0.0001
+  batch_size: 256 #128 -> 256 pour une meilleure convergence
+  lr: 0.03
 
 source_stats:
   compute: true
@@ -33,6 +25,3 @@ logging:
   output_dir: results/self_supervised
   save_backbone: true
   backbone_path: results/self_supervised/simclr_backbone.pt
-  best_backbone_path: results/self_supervised/best_backbone.pt
-  last_backbone_path: results/self_supervised/last_backbone.pt
-  training_log_path: results/self_supervised/training_log.csv
