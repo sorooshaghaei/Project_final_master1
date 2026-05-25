@@ -1,4 +1,4 @@
-# download CIFAR-10 into data/raw so everyone shares the same path
+# download cifar-10 into data/raw
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import sys
 
 
 def main() -> int:
-    # find repo root and standard data folder
+    # find the repo data folder
     repo_root = Path(__file__).resolve().parents[1]
     data_root = repo_root / "data" / "raw"
     data_root.mkdir(parents=True, exist_ok=True)
 
     try:
-        # import torchvision only when needed
+        # import torchvision only here
         from torchvision import datasets
     except ImportError:
         print(
@@ -23,11 +23,11 @@ def main() -> int:
         )
         return 1
 
-    # download both train and test splits
+    # download train and test splits
     datasets.CIFAR10(root=str(data_root), train=True, download=True)
     datasets.CIFAR10(root=str(data_root), train=False, download=True)
 
-    # check expected folder name
+    # check the expected folder
     expected = data_root / "cifar-10-batches-py"
     if expected.exists():
         print(f"CIFAR-10 ready at: {expected}")

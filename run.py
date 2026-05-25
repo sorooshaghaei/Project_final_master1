@@ -1,4 +1,4 @@
-# unified entry point for TER experiments
+# unified entry point for ter experiments
 import argparse
 import yaml
 import torch
@@ -43,7 +43,7 @@ def require_ttt_artifacts(paths: dict[str, Path]) -> None:
 
 
 def main() -> None:
-    # parse command line arguments
+    # parse cli arguments
     parser = argparse.ArgumentParser(description="Run TER experiments")
     parser.add_argument(
         "--task",
@@ -53,7 +53,7 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
 
-    # check config path early
+    # check config path first
     config_path = config_path_from_arg(args.config)
     
     task = args.task
@@ -64,7 +64,7 @@ def main() -> None:
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"[TASK] {task} | [DEVICE] {device}")
 
-    # SSL pretraining 
+    # ssl pretraining
     if task == "self_supervised":
         from src.self_supervised import SelfSupervisedTrainer, SSLConfig
         from src.datasets import build_cifar10_loaders, build_simclr_loader
@@ -90,15 +90,15 @@ def main() -> None:
             download=cfg["dataset"].get("download", False),
         )
 
-        trainer.pretrain(simclr_loader) # 2 vues augmentées
-        clf, _ = trainer.linear_eval(train_loader, val_loader) # évaluation linéaire sur les features brutes
+        trainer.pretrain(simclr_loader) # train with two augmented views
+        clf, _ = trainer.linear_eval(train_loader, val_loader) # train the linear head
         clf_path = project_path("results/self_supervised/classifier.pt")
         clf_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(clf.state_dict(), clf_path)
-        print(f"[SSL] Classifier linéaire sauvegardé dans {clf_path}")
+        print(f"[SSL] Linear classifier saved to {clf_path}")
         
 
-        # sauvegardes
+        # save ssl artifacts
         log_cfg = cfg.get("logging", {})
         if log_cfg.get("save_backbone"):
             backbone_path = project_path(log_cfg["backbone_path"])
@@ -111,14 +111,14 @@ def main() -> None:
             source_stats_path.parent.mkdir(parents=True, exist_ok=True)
             trainer.compute_and_save_source_stats(val_loader, str(source_stats_path))
 
-    # TTT ActMAD adaptation
+    # ttt actmad adaptation
     elif task == "test_time_training":
         from src.test_time_training import TTTAdapter, TTTConfig
         from src.datasets import build_cifar10c_loader
         from src.metrics import evaluate_ttt
         import torchvision.models as tvm
 
-        # charger backbone 
+        # load the backbone
         from src.self_supervised import SimCLRModel, SSLConfig
         ssl_cfg = SSLConfig()
         simclr = SimCLRModel(ssl_cfg)
@@ -135,11 +135,11 @@ def main() -> None:
 
         if ckpt_path:
             simclr.backbone.load_state_dict(torch.load(ckpt_path, map_location=device))
-            print(f"[TTT] Backbone chargé depuis {ckpt_path}")
+            print(f"[TTT] Backbone loaded from {ckpt_path}")
 
         clf = nn.Linear(simclr.feat_dim, cfg["model"]["num_classes"])
         clf.load_state_dict(torch.load(clf_path, map_location=device))
-        print(f"[TTT] Classifier linéaire chargé depuis {clf_path}")
+        print(f"[TTT] Linear classifier loaded from {clf_path}")
 
         model = nn.Sequential(simclr.backbone, clf).to(device)
 
@@ -152,7 +152,7 @@ def main() -> None:
 
         adapter = TTTAdapter(model, ttt_cfg, source_stats)
 
-        # évaluation sur une corruption 
+        # evaluate one corruption
         loader = build_cifar10c_loader(
             root=str(project_path(cfg["dataset"]["root"])),
             corruption=cfg["dataset"]["corruption"],
@@ -160,14 +160,14 @@ def main() -> None:
             batch_size=cfg["dataset"]["batch_size"],
         )
 
-        print("\n--- Baseline (sans TTT) ---")
+        print("\n--- Baseline (without TTT) ---")
         res_base = evaluate_ttt(adapter, loader, device, use_ttt=False)
         print(f"Accuracy: {res_base['accuracy']*100:.2f}%")
 
         print("\n--- ActMAD TTT ---")
         res_ttt = evaluate_ttt(adapter, loader, device, use_ttt=True)
-        print(f"Accuracy TTT: {res_ttt['accuracy']*100:.2f}%")
-        print(f"Amélioration: {(res_ttt['accuracy'] - res_base['accuracy'])*100:.2f}%")
+        print(f"TTT accuracy: {res_ttt['accuracy']*100:.2f}%")
+        print(f"Improvement: {(res_ttt['accuracy'] - res_base['accuracy'])*100:.2f}%")
 
 if __name__ == "__main__":
     main()

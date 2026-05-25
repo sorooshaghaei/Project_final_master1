@@ -1,4 +1,4 @@
-"""Run a small sweep over the number of TTT adaptation steps."""
+"""run a small sweep over ttt adaptation steps."""
 from __future__ import annotations
 
 import argparse
@@ -69,7 +69,7 @@ def main() -> int:
             raise FileNotFoundError(
                 "CIFAR-10-C files are missing.\n"
                 f"Missing:\n{missing_text}\n"
-                "Place the CIFAR-10-C .npy files under data/raw/CIFAR-10-C "
+                "Place the CIFAR-10-C .npy files under data/raw/cifar10c/CIFAR-10-C "
                 "or set allow_synthetic_fallback: true."
             )
         if dataset_cfg.get("print_fallback_warning_once", True):
