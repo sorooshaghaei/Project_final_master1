@@ -15,8 +15,6 @@ Project_final_master1/
 │   ├── 1_sun20.pdf
 │   ├── 3_When_test_time_Adaptation.pdf
 │   └── TER2.pdf
-├── docs/
-│   └── project_tracking.md
 ├── notebooks/
 │   ├── basicUnderstanding.ipynb
 │   └── choose_paper_for_TER.ipynb
@@ -33,8 +31,6 @@ Project_final_master1/
 │   └── smoke_test_time_training.yml
 └── data/
     ├── raw/
-    ├── interim/
-    └── processed/
 ```
 
 ## What Each Part Means
