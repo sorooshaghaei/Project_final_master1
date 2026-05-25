@@ -131,3 +131,75 @@ report/figures/
 report/logs/
 report/tables/
 ```
+
+This step trains the SimCLR backbone, saves the best and last checkpoints, trains the linear classifier on frozen features, and computes source activation statistics for TTT.
+
+## Run TTT Evaluation
+
+```bash
+python run.py --task test_time_training --config configs/test_time_training.yaml
+```
+
+Alias:
+
+```bash
+python run.py --task ttt --config configs/test_time_training.yaml
+```
+
+The default TTT config uses severity 5, which is a hard corruption setting.
+
+To run the same evaluation at moderate severity:
+
+```bash
+python run.py --task test_time_training --config configs/test_time_training_severity3.yaml
+```
+
+Severity 3 is moderate corruption. Severity 5 is hard corruption.
+
+## Run TTT Steps Sweep
+
+```bash
+python scripts/sweep_ttt_steps.py
+```
+
+The sweep compares `steps_per_batch = 3, 5, 10` using the same backbone, classifier, corruptions, severity, batch size, and adaptation learning rate.
+
+## Extra Corruption Evaluation
+
+```bash
+python scripts/eval_corruption.py
+```
+
+This script evaluates the full list of CIFAR-10-C corruption names with the same local fallback behavior.
+
+## Outputs
+
+```text
+results/self_supervised/training_log.csv
+results/self_supervised/best_backbone.pt
+results/self_supervised/last_backbone.pt
+results/self_supervised/simclr_backbone.pt
+results/self_supervised/classifier.pt
+results/self_supervised/source_stats.pt
+results/test_time_training/results.csv
+results/test_time_training/ttt_steps_sweep.csv
+```
+
+The `results/` folder is ignored by Git because it contains generated checkpoints, logs, and evaluation outputs.
+
+## Report
+
+The report source is in:
+
+```text
+report/report.tex
+report/references.bib
+```
+
+The compiled report is:
+
+```text
+report/report.pdf
+```
+
+The report only states measured results from the project runs. New experiments should be added after rerunning the corresponding commands.
