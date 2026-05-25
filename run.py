@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import random
-from pathlib import Path
-
+import yaml
 import numpy as np
 import torch
 import torch.nn as nn
@@ -65,6 +63,14 @@ def require_ttt_artifacts(paths: dict[str, Path]) -> None:
     )
 
 
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run TER experiments")
     parser.add_argument(
@@ -87,72 +93,61 @@ def main() -> None:
     elif task == "ssl":
         task = "self_supervised"
 
-    device = get_device()
-    print(f"[TASK] {task} | [DEVICE] {device} | [SEED] {seed}")
+    cfg = yaml.safe_load(config_path.read_text())
+    set_seed(cfg.get("seed", 42))
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"[TASK] {task} | [DEVICE] {device}")
 
     if task == "self_supervised":
         from src.datasets import build_cifar10_loaders, build_simclr_loader
         from src.self_supervised import SSLConfig, SelfSupervisedTrainer
 
+        dataset_cfg = cfg["dataset"]
+        model_cfg = cfg.get("model", {})
         training_cfg = cfg["training"]
+        log_cfg = cfg.get("logging", {})
+
         ssl_cfg = SSLConfig(
-            method=training_cfg.get("method", "simclr"),
-            max_epochs=training_cfg.get("max_epochs", training_cfg.get("epochs", 32)),
-            batch_size=training_cfg.get("batch_size", 128),
-            lr=training_cfg.get("lr", 3e-4),
-            temperature=training_cfg.get("temperature", 0.5),
-            projection_dim=cfg.get("model", {}).get("embedding_dim", 128),
-            backbone=cfg.get("model", {}).get("backbone", "resnet18"),
-            patience=training_cfg.get("patience", 12),
-            min_delta=training_cfg.get("min_delta", 5e-4),
+            method=training_cfg["method"],
+            epochs=training_cfg["epochs"],
+            batch_size=training_cfg["batch_size"],
+            lr=training_cfg["lr"],
+            projection_dim=model_cfg.get("embedding_dim", 128),
+            backbone=model_cfg.get("backbone", "resnet18"),
+            linear_eval_epochs=training_cfg.get("linear_eval_epochs", 30),
         )
 
         trainer = SelfSupervisedTrainer(ssl_cfg, device=device)
 
         simclr_loader = build_simclr_loader(
-            root=str(project_path(cfg["dataset"]["root"])),
-            batch_size=ssl_cfg.batch_size,
-            download=cfg["dataset"].get("download", False),
+            root=dataset_cfg["root"],
+            batch_size=training_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            download=dataset_cfg.get("download", False),
+            max_samples=dataset_cfg.get("max_simclr_samples", dataset_cfg.get("max_train_samples")),
         )
 
         train_loader, val_loader = build_cifar10_loaders(
-            root=str(project_path(cfg["dataset"]["root"])),
-            batch_size=ssl_cfg.batch_size,
-            download=cfg["dataset"].get("download", False),
+            root=dataset_cfg["root"],
+            batch_size=training_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            download=dataset_cfg.get("download", False),
+            max_train_samples=dataset_cfg.get("max_train_samples"),
+            max_test_samples=dataset_cfg.get("max_test_samples"),
         )
 
-        log_cfg = cfg.get("logging", {})
-        output_dir = project_path(log_cfg.get("output_dir", "results/self_supervised"))
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        best_backbone_path = project_path(log_cfg.get("best_backbone_path", "results/self_supervised/best_backbone.pt"))
-        last_backbone_path = project_path(log_cfg.get("last_backbone_path", "results/self_supervised/last_backbone.pt"))
-        log_path = project_path(log_cfg.get("training_log_path", "results/self_supervised/training_log.csv"))
-
-        trainer.pretrain(
-            simclr_loader,
-            log_path=log_path,
-            best_backbone_path=best_backbone_path,
-            last_backbone_path=last_backbone_path,
-        )
-
-        linear_cfg = cfg.get("linear_eval", {})
-        clf, _ = trainer.linear_eval(
-            train_loader,
-            val_loader,
-            num_classes=cfg.get("model", {}).get("num_classes", 10),
-            epochs=linear_cfg.get("epochs", 32),
-            lr=linear_cfg.get("lr", 1e-3),
-            weight_decay=linear_cfg.get("weight_decay", 1e-4),
-        )
-        clf_path = project_path("results/self_supervised/classifier.pt")
-        clf_path.parent.mkdir(parents=True, exist_ok=True)
+        trainer.pretrain(simclr_loader) # 2 vues augmentées
+        clf, _ = trainer.linear_eval(train_loader, val_loader) # évaluation linéaire sur les features brutes
+        clf_path = log_cfg.get("classifier_path", "results/self_supervised/classifier.pt")
+        Path(clf_path).parent.mkdir(parents=True, exist_ok=True)
         torch.save(clf.state_dict(), clf_path)
-        print(f"[SSL] Linear classifier saved to {clf_path}")
+        print(f"[SSL] Classifier linéaire sauvegardé dans {clf_path}")
+        
 
-        if log_cfg.get("save_backbone", True):
-            legacy_path = project_path(log_cfg.get("backbone_path", "results/self_supervised/simclr_backbone.pt"))
-            trainer.save_backbone(legacy_path)
+        # sauvegardes
+        if log_cfg.get("save_backbone"):
+            Path(log_cfg["backbone_path"]).parent.mkdir(parents=True, exist_ok=True)
+            trainer.save_backbone(log_cfg["backbone_path"])
 
         stats_cfg = cfg.get("source_stats", {})
         if stats_cfg.get("compute", True):
@@ -163,64 +158,45 @@ def main() -> None:
     elif task == "test_time_training":
         from src.datasets import build_cifar10c_loader, missing_cifar10c_files
         from src.metrics import evaluate_ttt
-        from src.self_supervised import SSLConfig, SimCLRModel
-        from src.test_time_training import TTTAdapter, TTTConfig
 
-        ssl_cfg = SSLConfig(backbone=cfg.get("model", {}).get("backbone", "resnet18"))
+        dataset_cfg = cfg["dataset"]
+        model_cfg = cfg["model"]
+        adaptation_cfg = cfg["adaptation"]
+
+        # charger backbone 
+        from src.self_supervised import SimCLRModel, SSLConfig
+        ssl_cfg = SSLConfig(backbone=model_cfg.get("backbone", "resnet18"))
         simclr = SimCLRModel(ssl_cfg)
+        ckpt = model_cfg.get("checkpoint")
+        if ckpt and Path(ckpt).exists():
+            simclr.backbone.load_state_dict(torch.load(ckpt, map_location=device))
+            print(f"[TTT] Backbone chargé depuis {ckpt}")
 
-        ckpt = cfg["model"].get("checkpoint")
-        ckpt_path = project_path(ckpt) if ckpt else None
-        clf_path = project_path("results/self_supervised/classifier.pt")
-        source_stats_path = project_path(cfg["adaptation"]["source_stats_path"])
-        artifact_paths = {
-            "backbone": ckpt_path,
-            "classifier": clf_path,
-            "source stats": source_stats_path,
-        }
-        require_ttt_artifacts({k: v for k, v in artifact_paths.items() if v is not None})
-
-        if ckpt_path:
-            simclr.backbone.load_state_dict(torch.load(ckpt_path, map_location=device))
-            print(f"[TTT] Backbone loaded from {ckpt_path}")
-
-        clf = nn.Linear(simclr.feat_dim, cfg["model"]["num_classes"])
-        clf.load_state_dict(torch.load(clf_path, map_location=device))
-        print(f"[TTT] Linear classifier loaded from {clf_path}")
+        clf = nn.Linear(simclr.feat_dim, model_cfg["num_classes"])
+        clf_path = model_cfg.get("classifier_path", "results/self_supervised/classifier.pt")
+        if Path(clf_path).exists():
+            clf.load_state_dict(torch.load(clf_path, map_location=device))
+            print(f"[TTT] Classifier linéaire chargé depuis {clf_path}")
 
         model = nn.Sequential(simclr.backbone, clf).to(device)
-        source_stats = torch.load(source_stats_path, map_location=device)
+
+        source_stats = torch.load(adaptation_cfg["source_stats_path"], map_location=device)
         ttt_cfg = TTTConfig(
-            lr=cfg["adaptation"]["lr"],
-            steps_per_batch=cfg["adaptation"]["steps_per_batch"],
-            adaptation_task=cfg["adaptation"].get("method", "actmad"),
+            lr=adaptation_cfg["lr"],
+            steps_per_batch=adaptation_cfg["steps_per_batch"],
+            adaptation_task=adaptation_cfg["method"],
         )
         adapter = TTTAdapter(model, ttt_cfg, source_stats)
 
-        dataset_cfg = cfg["dataset"]
-        corruptions = dataset_cfg.get("corruptions") or [dataset_cfg["corruption"]]
-        severity = dataset_cfg["severity"]
-        data_root = project_path(dataset_cfg["root"])
-        allow_synthetic_fallback = dataset_cfg.get("allow_synthetic_fallback", True)
-        print_fallback_warning_once = dataset_cfg.get("print_fallback_warning_once", True)
-        use_safe_ttt = cfg["adaptation"].get("use_safe_ttt", False)
-        max_allowed_confidence_drop = cfg["adaptation"].get("max_allowed_confidence_drop", 0.05)
-        missing_cifar10c = missing_cifar10c_files(data_root, corruptions)
-        if missing_cifar10c:
-            if not allow_synthetic_fallback:
-                missing_text = "\n".join(f"- {path}" for path in missing_cifar10c)
-                raise FileNotFoundError(
-                    "CIFAR-10-C files are missing.\n"
-                    f"Missing:\n{missing_text}\n"
-                    "Place the CIFAR-10-C .npy files under data/raw/CIFAR-10-C "
-                    "or set allow_synthetic_fallback: true."
-                )
-            if print_fallback_warning_once:
-                print(
-                    "[DATA] CIFAR-10-C files not found. "
-                    "Using locally generated CIFAR-10 test corruptions for this evaluation."
-                )
-        rows = []
+        # évaluation sur une corruption 
+        loader = build_cifar10c_loader(
+            root=dataset_cfg["root"],
+            corruption=dataset_cfg["corruption"],
+            severity=dataset_cfg["severity"],
+            batch_size=dataset_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            max_samples=dataset_cfg.get("max_samples"),
+        )
 
         print(f"\n{'Corruption':<22} {'Baseline':>10} {'TTT':>10} {'Gain':>10}")
         print("-" * 58)

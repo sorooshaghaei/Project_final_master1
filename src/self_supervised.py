@@ -1,14 +1,8 @@
-"""Self-supervised SimCLR training utilities."""
-from __future__ import annotations
-
-import csv
-import copy
-from dataclasses import dataclass
-from pathlib import Path
-
+"""Self-supervised learning models and training utilities."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dataclasses import dataclass
 from torchvision import models
 
 
@@ -21,9 +15,8 @@ class SSLConfig:
     lr: float = 3e-4
     temperature: float = 0.5
     projection_dim: int = 128
-    backbone: str = "resnet18"
-    patience: int = 12
-    min_delta: float = 5e-4
+    backbone: str = "resnet18" # peut être changé selon les besoins
+    linear_eval_epochs: int = 30
 
 
 class ProjectionHead(nn.Module):
@@ -106,14 +99,8 @@ class SelfSupervisedTrainer:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.backbone.state_dict(), path)
 
-    def pretrain(
-        self,
-        train_loader,
-        log_path: str | Path | None = None,
-        best_backbone_path: str | Path | None = None,
-        last_backbone_path: str | Path | None = None,
-    ):
-        """Run SimCLR pretraining with early stopping and checkpointing."""
+    def pretrain(self, train_loader):
+        # run self-supervised pretraining
         self.model.train()
         best_loss = float("inf")
         best_epoch = 0
@@ -133,91 +120,20 @@ class SelfSupervisedTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
                 total_loss += loss.item()
-                num_batches += 1
-
-            avg_loss = total_loss / max(num_batches, 1)
             self.scheduler.step()
-            lr = self.optimizer.param_groups[0]["lr"]
-
-            improved = avg_loss < (best_loss - self.config.min_delta)
-            if improved:
-                best_loss = avg_loss
-                best_epoch = epoch
-                wait = 0
-                best_state = copy.deepcopy(self.model.state_dict())
-                if best_backbone_path:
-                    self._save_backbone_state(self.model, best_backbone_path)
-            else:
-                wait += 1
-
-            if last_backbone_path:
-                self._save_backbone_state(self.model, last_backbone_path)
-
-            stopped_early = wait >= self.config.patience
-            rows.append(
-                {
-                    "epoch": epoch,
-                    "average_ssl_loss": avg_loss,
-                    "learning_rate": lr,
-                    "best_epoch": best_epoch,
-                    "stopped_early": stopped_early,
-                }
-            )
-            print(
-                f"Epoch {epoch}/{self.config.max_epochs} | "
-                f"loss={avg_loss:.4f} | best_epoch={best_epoch} | lr={lr:.6f}"
-            )
-
-            if stopped_early:
-                print(
-                    f"[SSL] Early stopping at epoch {epoch}. "
-                    f"Best epoch: {best_epoch} (loss={best_loss:.4f})."
-                )
-                break
-
-        if best_state is not None:
-            self.model.load_state_dict(best_state)
-
-        if log_path:
-            log_path = Path(log_path)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            with log_path.open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=[
-                        "epoch",
-                        "average_ssl_loss",
-                        "learning_rate",
-                        "best_epoch",
-                        "stopped_early",
-                    ],
-                )
-                writer.writeheader()
-                writer.writerows(rows)
-            print(f"[SSL] Training log saved to {log_path}")
-
+            print(f"Epoch {epoch+1}/{self.config.epochs}, Loss: {total_loss/len(train_loader):.4f}")
         return train_loader
 
-    def linear_eval(
-        self,
-        train_loader,
-        val_loader,
-        num_classes: int = 10,
-        epochs: int = 32,
-        lr: float = 1e-3,
-        weight_decay: float = 1e-4,
-    ):
-        """Train a linear classifier on frozen backbone features."""
+    def linear_eval(self, train_loader, val_loader, num_classes: int = 10):
+        """Effectue une évaluation linéaire en entraînant un classifieur linéaire sur les features brutes extraites par le backbone,
+        sans mise à jour du backbone."""
+        # run linear evaluation on frozen features
         self.model.eval()
         for p in self.model.backbone.parameters():
             p.requires_grad = False
 
-        clf = nn.Linear(self.model.feat_dim, num_classes).to(self.device)
-        opt = torch.optim.Adam(clf.parameters(), lr=lr, weight_decay=weight_decay)
-
-        for _ in range(epochs):
+        for epoch in range(self.config.linear_eval_epochs):
             clf.train()
             for x, y in train_loader:
                 x, y = x.to(self.device), y.to(self.device)

@@ -1,53 +1,135 @@
-# Self-Supervised Test-Time Training for Image Classification
+# Test-Time Training with Self-Supervised Learning
 
-Master 1 TER project on test-time adaptation for image classification under distribution shift.
+M1 TER project on test-time training for image classification under distribution shift.
 
-The project uses SimCLR pretraining on CIFAR-10, a frozen ResNet18 backbone with linear evaluation, and ActMAD-style Test-Time Training on CIFAR-10-C corruptions or local synthetic fallback corruptions.
+The experiments use CIFAR-10 for self-supervised pretraining and CIFAR-10-C for
+corruption robustness evaluation. The current implementation trains a SimCLR
+backbone, fits a linear classifier on frozen features, saves source activation
+statistics, and evaluates ActMAD adaptation at test time.
 
-## Setup
+## Authors
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+Rayane KHATIM, Mehdi AGHAEI  
+Universite Paris Cite
+
+## Repository
+
+```text
+Project_final_master1/
+├── configs/        Experiment configurations
+├── data/           Local datasets
+├── docs/           Project notes and supporting documents
+├── notebooks/      Exploration notebooks
+├── papers/         Reference papers
+├── presentation/   Presentation slides
+├── report/         Final report, figures, logs, and result tables
+├── results/        Saved checkpoints and source statistics
+├── scripts/        Utility scripts
+├── src/            Training, adaptation, datasets, and metrics
+├── run.py          Main experiment entrypoint
+├── LICENSE
+└── README.md
 ```
 
-If PyTorch does not install correctly for the machine, install `torch` and `torchvision` from the official PyTorch instructions, then install the remaining dependencies:
+Main source files:
 
-```bash
-pip install numpy pyyaml
-```
+- `src/self_supervised.py`: SimCLR model, pretraining, linear evaluation, and source-statistics export.
+- `src/test_time_training.py`: ActMAD source statistics, adaptation loss, and TTT evaluation adapter.
+- `src/datasets.py`: CIFAR-10 and CIFAR-10-C dataloaders.
+- `src/metrics.py`: evaluation metrics.
 
 ## Data
 
-CIFAR-10 is downloaded automatically when `dataset.download: true` is set in `configs/self_supervised.yaml`.
+CIFAR-10 is loaded from:
 
-The official CIFAR-10-C files are optional for a light TER run. For a full CIFAR-10-C evaluation, place the `.npy` files here:
+```text
+data/raw/cifar-10-batches-py/
+```
+
+CIFAR-10-C is expected at:
 
 ```text
 data/raw/CIFAR-10-C/
 ```
 
-Example files:
+The selected CIFAR-10-C corruption and severity are set in:
 
 ```text
-gaussian_noise.npy
-shot_noise.npy
-labels.npy
+configs/test_time_training.yaml
 ```
 
-If CIFAR-10-C is missing and `allow_synthetic_fallback: true` is enabled, the project generates lightweight corruptions from the CIFAR-10 test batch. This fallback is useful for checking the pipeline, but it is not a replacement for the official CIFAR-10-C benchmark.
+## Setup
 
-## Train SSL and Linear Classifier
+From the project directory:
+
+```bash
+source ../.venv/bin/activate
+```
+
+Install the required Python packages if the environment has not already been prepared:
+
+```bash
+pip install torch torchvision numpy pyyaml
+```
+
+## Running Experiments
+
+Run self-supervised training first:
 
 ```bash
 python run.py --task self_supervised --config configs/self_supervised.yaml
 ```
 
-Alias:
+This writes:
+
+```text
+results/self_supervised/simclr_backbone.pt
+results/self_supervised/classifier.pt
+results/self_supervised/source_stats.pt
+```
+
+Then run test-time training:
+
+```bash
+python run.py --task test_time_training --config configs/test_time_training.yaml
+```
+
+Short task names are also supported:
 
 ```bash
 python run.py --task ssl --config configs/self_supervised.yaml
+python run.py --task ttt --config configs/test_time_training.yaml
+```
+
+## Smoke Runs
+
+Small configurations are available for quick checks:
+
+```bash
+python run.py --task ssl --config configs/smoke_self_supervised.yml
+python run.py --task ttt --config configs/smoke_test_time_training.yml
+```
+
+The smoke TTT run expects the smoke SSL checkpoints in:
+
+```text
+results/smoke/self_supervised/
+```
+
+## Report
+
+The final report is in:
+
+```text
+report/report.pdf
+```
+
+Supporting outputs are stored in:
+
+```text
+report/figures/
+report/logs/
+report/tables/
 ```
 
 This step trains the SimCLR backbone, saves the best and last checkpoints, trains the linear classifier on frozen features, and computes source activation statistics for TTT.

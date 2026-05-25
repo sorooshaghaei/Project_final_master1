@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import random
+from typing import Optional, Sequence, Tuple
+
+from torch.utils.data import DataLoader, Dataset, Subset
 from pathlib import Path
 import pickle
 import random
@@ -90,8 +94,17 @@ def _require_torchvision() -> None:
         raise ImportError("torchvision is required to build CIFAR-10 datasets.")
 
 
-def build_cifar10_transforms(train: bool) -> Any:
-    """Return a transform composition for CIFAR-10, with data augmentation when train=True."""
+def _limit_dataset(dataset: Dataset, max_samples: Optional[int]) -> Dataset:
+    if max_samples is None:
+        return dataset
+    if max_samples <= 0:
+        raise ValueError("max_samples must be positive when provided.")
+    return Subset(dataset, range(min(max_samples, len(dataset))))
+
+
+def build_cifar10_transforms(train: bool) ->Any:
+    """Retourne une composition de transformations pour CIFAR-10. Si train=True, inclut des augmentations de données."""
+    # standard CIFAR-10 normalization
     _require_torchvision()
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.2023, 0.1994, 0.2010)
@@ -130,15 +143,15 @@ class TwoViewsTransform:
 
     def __call__(self, x):
         return self.t(x), self.t(x)
-
-
+    
 def build_simclr_loader(
     root: str,
     batch_size: int = 128,
-    num_workers: int = 4,
+    num_workers: int = 2,
     download: bool = False,
+    max_samples: Optional[int] = None,
 ) -> DataLoader:
-    """Loader for SimCLR pretraining that returns augmented pairs from the same image."""
+    """Loader pour le pré-entraînement SimCLR, qui retourne des paires augmentées d'une même image."""
     _require_torchvision()
     dataset = datasets.CIFAR10(
         root=root,
@@ -146,6 +159,7 @@ def build_simclr_loader(
         download=download,
         transform=TwoViewsTransform(),
     )
+    dataset = _limit_dataset(dataset, max_samples)
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -173,6 +187,8 @@ def build_cifar10_datasets(
     root: str,
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
+    max_train_samples: Optional[int] = None,
+    max_test_samples: Optional[int] = None,
 ) -> Tuple[Dataset, Dataset]:
     """Return CIFAR-10 train and test datasets with an optional test-time rotation shift."""
     _require_torchvision()
@@ -189,6 +205,9 @@ def build_cifar10_datasets(
         transform=build_cifar10_transforms(train=False),
     )
 
+    train_dataset = _limit_dataset(train_dataset, max_train_samples)
+    test_dataset = _limit_dataset(test_dataset, max_test_samples)
+
     if rotation_shift and rotation_shift.enabled:
         test_dataset = RotationShiftDataset(test_dataset, rotation_shift)
 
@@ -201,12 +220,16 @@ def build_cifar10_loaders(
     num_workers: int = 4,
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
+    max_train_samples: Optional[int] = None,
+    max_test_samples: Optional[int] = None,
 ) -> Tuple[DataLoader, DataLoader]:
     """Return CIFAR-10 train and test dataloaders with an optional test-time rotation shift."""
     train_dataset, test_dataset = build_cifar10_datasets(
         root=root,
         download=download,
         rotation_shift=rotation_shift,
+        max_train_samples=max_train_samples,
+        max_test_samples=max_test_samples,
     )
 
     train_loader = DataLoader(
@@ -246,169 +269,23 @@ CIFAR10C_CORRUPTIONS = [
 ]
 
 
-def missing_cifar10c_files(root: str | Path, corruptions: Sequence[str]) -> list[Path]:
-    cifar10c_dir = _resolve_cifar10c_dir(root)
-    if isinstance(corruptions, str):
-        corruptions = [corruptions]
-    required = [cifar10c_dir / "labels.npy"]
-    required.extend(cifar10c_dir / f"{corruption}.npy" for corruption in corruptions)
-    return [path for path in required if not path.exists()]
+def _resolve_cifar10c_dir(root: str) -> Path:
+    root_path = Path(root)
+    candidates = [root_path / "CIFAR-10-C"]
+    if root_path.name == "CIFAR-10-C":
+        candidates.append(root_path)
 
-
-def _resolve_cifar10c_dir(root: str | Path) -> Path:
-    root = Path(root)
-    if root.name == "CIFAR-10-C" or (root / "labels.npy").exists():
-        return root
-    return root / "CIFAR-10-C"
-
-
-def _find_cifar10_batch_dir(root: Path) -> Path:
-    candidates = [
-        root / "cifar-10-batches-py",
-        root.parent / "cifar-10-batches-py",
-        root.parent.parent / "cifar-10-batches-py",
-    ]
     for candidate in candidates:
-        if (candidate / "test_batch").exists():
+        if candidate.is_dir():
             return candidate
+
+    searched = "\n  - ".join(str(candidate) for candidate in candidates)
     raise FileNotFoundError(
-        "CIFAR-10-C files are missing and the local CIFAR-10 test batch was not found.\n"
-        "Run: python scripts/download_cifar10.py\n"
-        "Then rerun the TTT command."
+        "CIFAR-10-C directory not found.\n"
+        f"Searched:\n  - {searched}\n"
+        "Set dataset.root to the parent directory that contains CIFAR-10-C "
+        "(for this project: data/raw)."
     )
-
-
-def _load_cifar10_test_batch(root: Path) -> tuple[np.ndarray, np.ndarray]:
-    batch_dir = _find_cifar10_batch_dir(root)
-    with (batch_dir / "test_batch").open("rb") as f:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            batch = pickle.load(f, encoding="bytes")
-
-    data = batch[b"data"].reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
-    labels = np.array(batch[b"labels"], dtype=np.int64)
-    return data.astype(np.uint8), labels
-
-
-def _box_blur(images: np.ndarray, radius: int) -> np.ndarray:
-    if radius <= 0:
-        return images
-    padded = np.pad(images.astype(np.float32), ((0, 0), (radius, radius), (radius, radius), (0, 0)), mode="reflect")
-    out = np.zeros_like(images, dtype=np.float32)
-    count = 0
-    for dy in range(-radius, radius + 1):
-        for dx in range(-radius, radius + 1):
-            out += padded[:, radius + dy:radius + dy + 32, radius + dx:radius + dx + 32, :]
-            count += 1
-    return np.clip(out / count, 0, 255).astype(np.uint8)
-
-
-def _pixelate(images: np.ndarray, block: int) -> np.ndarray:
-    small = images[:, ::block, ::block, :]
-    up = np.repeat(np.repeat(small, block, axis=1), block, axis=2)
-    return up[:, :32, :32, :].astype(np.uint8)
-
-
-def _wave_shift(images: np.ndarray, amount: int) -> np.ndarray:
-    shifted = images.copy()
-    for row in range(32):
-        shift = int(round(np.sin(row / 3.0) * amount))
-        shifted[:, row, :, :] = np.roll(images[:, row, :, :], shift, axis=1)
-    return shifted
-
-
-def _local_corruption(images: np.ndarray, corruption: str, severity: int) -> np.ndarray:
-    seed = severity * 1009 + sum((i + 1) * ord(ch) for i, ch in enumerate(corruption))
-    rng = np.random.default_rng(seed)
-    x = images.astype(np.float32) / 255.0
-    level = severity - 1
-
-    if corruption == "gaussian_noise":
-        out = x + rng.normal(0, [0.08, 0.12, 0.18, 0.26, 0.35][level], x.shape)
-    elif corruption == "shot_noise":
-        vals = [60, 25, 12, 5, 3][level]
-        out = rng.poisson(np.clip(x, 0, 1) * vals) / vals
-    elif corruption == "impulse_noise":
-        out = x.copy()
-        mask = rng.random(x.shape[:3]) < [0.03, 0.06, 0.09, 0.14, 0.20][level]
-        salt = rng.random(x.shape[:3]) < 0.5
-        out[mask & salt] = 1.0
-        out[mask & ~salt] = 0.0
-    elif corruption == "brightness":
-        out = x + [0.08, 0.12, 0.18, 0.24, 0.32][level]
-    elif corruption == "contrast":
-        factor = [0.85, 0.70, 0.55, 0.40, 0.30][level]
-        mean = x.mean(axis=(1, 2), keepdims=True)
-        out = (x - mean) * factor + mean
-    elif corruption == "fog":
-        fog = rng.normal(0.75, 0.12, x.shape[:3])[..., None]
-        fog = _box_blur(np.clip(fog * 255, 0, 255).astype(np.uint8), 2 + level).astype(np.float32) / 255.0
-        out = x * (1 - [0.18, 0.26, 0.34, 0.42, 0.50][level]) + fog * [0.18, 0.26, 0.34, 0.42, 0.50][level]
-    elif corruption == "snow":
-        snow = rng.random(x.shape[:3]) < [0.02, 0.04, 0.07, 0.10, 0.14][level]
-        out = x.copy()
-        out[snow] = 1.0
-        out = np.clip(out + snow[..., None] * 0.35, 0, 1)
-    elif corruption == "frost":
-        frost = rng.normal(0.65, 0.18, x.shape)
-        out = x * [0.85, 0.78, 0.70, 0.62, 0.55][level] + frost * [0.15, 0.22, 0.30, 0.38, 0.45][level]
-    elif corruption in {"defocus_blur", "glass_blur", "zoom_blur"}:
-        return _box_blur(images, [1, 1, 2, 2, 3][level])
-    elif corruption == "motion_blur":
-        radius = [1, 2, 3, 4, 5][level]
-        out_img = np.zeros_like(images, dtype=np.float32)
-        count = 0
-        for shift in range(-radius, radius + 1):
-            out_img += np.roll(images, shift, axis=2)
-            count += 1
-        return np.clip(out_img / count, 0, 255).astype(np.uint8)
-    elif corruption == "elastic_transform":
-        return _wave_shift(images, [1, 2, 3, 4, 5][level])
-    elif corruption == "pixelate":
-        return _pixelate(images, [2, 2, 4, 4, 8][level])
-    elif corruption == "jpeg_compression":
-        levels = [48, 36, 28, 20, 14]
-        return (np.round(images.astype(np.float32) / levels[level]) * levels[level]).clip(0, 255).astype(np.uint8)
-    else:
-        raise ValueError(f"Unknown corruption: {corruption}")
-
-    return np.clip(out * 255, 0, 255).astype(np.uint8)
-
-
-def _build_local_corruption_loader(
-    root: Path,
-    corruption: str,
-    severity: int,
-    batch_size: int,
-    num_workers: int,
-) -> DataLoader:
-    data, labels = _load_cifar10_test_batch(root)
-    data = _local_corruption(data, corruption, severity)
-    return _normalised_tensor_loader(data, labels, batch_size=batch_size, num_workers=num_workers)
-
-
-def _normalised_tensor_loader(
-    data: np.ndarray,
-    labels: np.ndarray,
-    batch_size: int,
-    num_workers: int,
-) -> DataLoader:
-    mean = np.array([0.4914, 0.4822, 0.4465])
-    std = np.array([0.2023, 0.1994, 0.2010])
-    data = data.astype(np.float32) / 255.0
-    data = (data - mean) / std
-    data = torch.tensor(data, dtype=torch.float32).permute(0, 3, 1, 2)
-    labels = torch.tensor(labels, dtype=torch.long)
-
-    dataset = TensorDataset(data, labels)
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=torch.cuda.is_available(),
-    )
-
 
 def build_cifar10c_loader(
     root: str,
@@ -416,44 +293,44 @@ def build_cifar10c_loader(
     severity: int,
     batch_size: int = 1,
     num_workers: int = 2,
-    allow_synthetic_fallback: bool = False,
+    max_samples: Optional[int] = None,
 ) -> DataLoader:
-    """Load one CIFAR-10-C .npy file for a given corruption and severity.
-    Expected file structure: root/CIFAR-10-C/<corruption>.npy + root/CIFAR-10-C/labels.npy.
-    Each .npy file contains 50,000 images, with 10,000 per severity level in order."""
+    """Charge un fichier .npy CIFAR-10-C pour une corrution et une sévérité données.
+    Structure du fichier attendu : root/CIFAR-10-C/<corruption>.npy + root/CIFAR-10-C/labels.npy
+    Chaque fichier .npy contient 50 000 images (10 000 par sévérité; dans l'ordre)."""
     if corruption not in CIFAR10C_CORRUPTIONS:
         raise ValueError(f"Unknown corruption: {corruption}")
     if not 1 <= severity <= 5:
         raise ValueError("Severity must be between 1 and 5")
     
-    root_path = Path(root)
-    cifar10c_dir = _resolve_cifar10c_dir(root_path)
+    # charger les données et labels
+    cifar10c_dir = _resolve_cifar10c_dir(root)
     data_path = cifar10c_dir / f"{corruption}.npy"
     labels_path = cifar10c_dir / "labels.npy"
-    missing = missing_cifar10c_files(root_path, [corruption])
-    if missing:
-        if not allow_synthetic_fallback:
-            missing_text = "\n".join(f"- {path}" for path in missing)
-            raise FileNotFoundError(
-                "CIFAR-10-C files are missing.\n"
-                f"Missing:\n{missing_text}\n"
-                "Place the CIFAR-10-C .npy files under data/raw/CIFAR-10-C "
-                "or set allow_synthetic_fallback: true."
-            )
-        return _build_local_corruption_loader(
-            root=root_path,
-            corruption=corruption,
-            severity=severity,
-            batch_size=batch_size,
-            num_workers=num_workers,
-        )
+    missing_paths = [path for path in (data_path, labels_path) if not path.exists()]
+    if missing_paths:
+        missing = "\n  - ".join(str(path) for path in missing_paths)
+        raise FileNotFoundError(f"Missing CIFAR-10-C file(s):\n  - {missing}")
 
-    data = np.load(data_path)
-    labels = np.load(labels_path)
+    data = np.load(data_path, mmap_mode="r") # shape (50000, 32, 32, 3), uint8
+    labels = np.load(labels_path, mmap_mode="r") # shape (50000,), int64
 
     start = (severity - 1) * 10_000
     end = severity * 10_000
+    if max_samples is not None:
+        if max_samples <= 0:
+            raise ValueError("max_samples must be positive when provided.")
+        end = min(end, start + max_samples)
     data = data[start:end]
     labels = labels[start:end]
 
-    return _normalised_tensor_loader(data, labels, batch_size=batch_size, num_workers=num_workers)
+    # normalisation standard CIFAR-10
+    mean = np.array([0.4914, 0.4822, 0.4465])
+    std = np.array([0.2023, 0.1994, 0.2010])
+    data = data.astype(np.float32) / 255.0
+    data = (data - mean) / std
+    data = torch.tensor(data, dtype=torch.float32).permute(0, 3, 1, 2) # shape (N, 3, 32, 32)
+    labels = torch.tensor(labels, dtype=torch.long)
+
+    dataset = TensorDataset(data, labels)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)

@@ -1,5 +1,6 @@
-"""ActMAD-style Test-Time Training utilities."""
-
+"""Test-time training utilities and ActMAD adaptation."""
+import torch 
+import torch.nn as nn
 import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,9 +95,14 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
     loss = torch.zeros(1, device=next(iter(hook.activations.values())).device, requires_grad=True).squeeze()
     count = 0
     for name, act in hook.activations.items():
-        if name not in source_stats:
+        stats_name = name
+        if stats_name not in source_stats and "." in name:
+            prefix, unprefixed_name = name.split(".", 1)
+            if prefix.isdigit():
+                stats_name = unprefixed_name
+        if stats_name not in source_stats:
             continue
-        mu_src, sig_src = source_stats[name]
+        mu_src, sig_src = source_stats[stats_name]
         mu_src = mu_src.to(act.device)
         sig_src = sig_src.to(act.device)
 
@@ -111,14 +117,16 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
 
 
 class TTTAdapter:
-    """Test-Time Training adapter for an already trained model using an unlabeled target batch."""
-
+    """Classe d'adaptation pour Test-Time Training (TTT) qui encapsule un modèle pré-entraîné
+        et fournit des méthodes pour l'adaptation en temps réel sur des batches de données cibles non étiquetées,
+        en utilisant une perte d'adaptation auto-supervisée (ex: ActMAD)."""
     def __init__(self, model, config: TTTConfig, source_stats: dict):
         self.config = config
         self.source_stats = source_stats
         self._base_model = model
 
     def adapt_on_batch(self, x: torch.Tensor) -> torch.Tensor:
+        # adapt model parameters using the ActMAD objective on an unlabeled target batch
         model = copy.deepcopy(self._base_model)
         model.train()
 
@@ -157,7 +165,7 @@ class TTTAdapter:
         return logits
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
-        # standard inference without target-batch adaptation
+        # run inference with the stored base model
         self._base_model.eval()
         with torch.no_grad():
             return self._base_model(x)

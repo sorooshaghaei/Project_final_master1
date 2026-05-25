@@ -65,7 +65,7 @@ if __name__ == "__main__":
     for corruption in CIFAR10C_CORRUPTIONS:
         corruption_fallback_used = bool(missing_cifar10c_files(root, [corruption]))
         loader = build_cifar10c_loader(
-            root=root,
+            root="data/raw",
             corruption=corruption,
             severity=severity,
             batch_size=batch_size,
