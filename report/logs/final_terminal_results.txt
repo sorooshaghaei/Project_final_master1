@@ -1,10 +1,11 @@
-Final terminal output used in the report.
+Terminal output used in the report.
 
 Self-supervised run:
 - task: self_supervised
 - config: configs/self_supervised.yaml
 - device: mps
-- epochs: 100
+- current config epochs: 200
+- recorded run epochs: 100
 - epoch 1 loss: 5.6214
 - epoch 100 loss: 4.6586
 - linear evaluation accuracy: 67.05%

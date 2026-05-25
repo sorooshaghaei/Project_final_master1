@@ -5,7 +5,7 @@ dataset:
   name: cifar10c
   root: data/raw/cifar10c
   download: false
-  corruption: shot_noise #brightness(-) #fog(+), frost(-), shot_noise(+), gaussian_noise(+)
+  corruption: shot_noise # try brightness, fog, frost, or gaussian_noise
   severity: 5
   batch_size: 16
   rotation_shift:

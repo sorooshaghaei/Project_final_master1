@@ -4,15 +4,15 @@ import torch
 
 def top1_accuracy(num_correct: int, num_total: int) -> float:
     # guard against division by zero
-    """Calcule l'exactitude top-1 à partir du nombre de prédictions correctes et du nombre total d'exemples."""
+    """compute top-1 accuracy."""
     if num_total <= 0:
         raise ValueError("num_total must be positive")
     return float(num_correct) / float(num_total)
 
-# Evaluation TTT vs baseline
+# evaluate ttt against baseline
 
 def evaluate_ttt(adapter, test_loader, device: str, use_ttt: bool = True) -> Dict[str, float]:
-    """Évalue la précision du modèle avec ou sans adaptation TTT sur un ensemble de test donné."""
+    """evaluate with or without ttt."""
     correct = total = 0
     for x, y in test_loader:
         x, y = x.to(device), y.to(device)
@@ -26,12 +26,12 @@ def evaluate_ttt(adapter, test_loader, device: str, use_ttt: bool = True) -> Dic
     return {"accuracy": acc, "correct": correct, "total": total}
 
 def mean_corruption_error(adapter, root: str, device: str, severity: int = 3, batch_size: int = 16, use_ttt: bool = True) -> float:
-    """Calcule l'erreur moyenne sur les différentes corruptions de CIFAR-10-C pour une sévérité donnée, avec ou sans TTT."""
-    from src.datasets import build_cifar10_loader, CIFAR10C_CORRUPTIONS
+    """compute mean error over cifar-10-c corruptions."""
+    from src.datasets import build_cifar10c_loader, CIFAR10C_CORRUPTIONS
 
     errors = []
     for corruption in CIFAR10C_CORRUPTIONS:
-        loader = build_cifar10_loader(
+        loader = build_cifar10c_loader(
             root=root,
             corruption=corruption,
             severity=severity,
@@ -42,5 +42,5 @@ def mean_corruption_error(adapter, root: str, device: str, severity: int = 3, ba
         print(f" [{corruption}] err={errors[-1]*100:.2f}%")
         
     mce = sum(errors) / len(errors)
-    print(f"[mCE] Sévérité={severity}, use_ttt={use_ttt} -> {mce*100:.2f}%")
+    print(f"[mCE] severity={severity}, use_ttt={use_ttt} -> {mce*100:.2f}%")
     return mce

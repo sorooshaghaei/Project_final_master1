@@ -3,7 +3,7 @@ seed: 42
 
 dataset:
   name: cifar10c
-  root: data/raw
+  root: data/raw/cifar10c
   download: false
   corruption: shot_noise
   severity: 5

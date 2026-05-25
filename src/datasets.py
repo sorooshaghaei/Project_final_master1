@@ -1,5 +1,5 @@
-"""Dataset registry used by TTT and SSL pipelines."""
-# dataset registry and builders for TTT and SSL
+"""dataset registry for ttt and ssl pipelines."""
+# dataset registry and loaders for ttt and ssl
 from __future__ import annotations
 
 from typing import Any
@@ -43,7 +43,7 @@ class RotationShiftConfig:
 
 # dataset wrapper that rotates each sample to simulate distribution shift
 class RotationShiftDataset(Dataset):
-    """Dataset wrapper qui applique une rotation à chaque image pour simuler un changement de distribution au test."""
+    """rotate samples to simulate test shift."""
     def __init__(self, base: Dataset, config: RotationShiftConfig):
         if not _TORCHVISION_AVAILABLE:
             raise ImportError("torchvision is required for RotationShiftDataset.")
@@ -77,10 +77,10 @@ class RotationShiftDataset(Dataset):
 
 
 def get_dataset_spec(name: str) -> DatasetSpec:
-    """Donne le nom d'un dataset, retourne un DatasetSpec avec les métadonnées nécessaires pour le construire."""
+    """return metadata for a dataset name."""
     # return dataset metadata
     registry = {
-        # CIFAR-10 root should be data/raw/cifar-10-batches-py
+        # cifar-10 is stored under data/raw
         "cifar10": DatasetSpec(name="cifar10", root="data/raw", num_classes=10),
         "cifar10c": DatasetSpec(name="cifar10c", root="data/raw/cifar10c", num_classes=10),
         "imagenet_c": DatasetSpec(name="imagenet_c", root="data/raw/imagenet_c", num_classes=1000),
@@ -91,15 +91,15 @@ def get_dataset_spec(name: str) -> DatasetSpec:
 
 
 def _require_torchvision() -> None:
-    """Aide à vérifier que torchvision est disponible avant de construire des datasets qui en dépendent."""
+    """check that torchvision is installed."""
     # guard for optional torchvision dependency
     if not _TORCHVISION_AVAILABLE:
         raise ImportError("torchvision is required to build CIFAR-10 datasets.")
 
 
 def build_cifar10_transforms(train: bool) ->Any:
-    """Retourne une composition de transformations pour CIFAR-10. Si train=True, inclut des augmentations de données."""
-    # standard CIFAR-10 normalization
+    """build cifar-10 transforms."""
+    # standard cifar-10 normalization
     _require_torchvision()
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.2023, 0.1994, 0.2010)
@@ -121,9 +121,9 @@ def build_cifar10_transforms(train: bool) ->Any:
             transforms.Normalize(mean=mean, std=std),
         ]
     )
-# Transformateur pour SSL avec deux vues augmentées d'une même image
+# two augmented views for ssl
 class TwoViewsTransform:
-    """Transformateur qui prend une image et retourne deux versions augmentées différentes pour l'apprentissage auto-supervisé."""
+    """return two augmented views of one image."""
     def __init__(self):
         _require_torchvision()
         self.t = transforms.Compose([
@@ -139,7 +139,7 @@ class TwoViewsTransform:
         return self.t(x), self.t(x)
     
 def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, download: bool = False,) -> DataLoader:
-    """Loader pour le pré-entraînement SimCLR, qui retourne des paires augmentées d'une même image."""
+    """build the simclr pretraining loader."""
     _require_torchvision()
     dataset = datasets.CIFAR10(
         root=root,
@@ -157,9 +157,8 @@ def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, d
         
 
 def rotation_shift_from_config(config: Optional[dict]) -> RotationShiftConfig:
-    # build RotationShiftConfig from a config dict or return disabled config
-    """Construit une RotationShiftConfig à partir d'un dictionnaire de configuration. 
-        Si le dictionnaire est None ou vide, retourne une config désactivée."""
+    # build rotation settings or disable them
+    """build rotation shift settings from config."""
     if not config:
         return RotationShiftConfig(enabled=False)
 
@@ -177,9 +176,8 @@ def build_cifar10_datasets(
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[Dataset, Dataset]:
-    """Retourne les datasets d'entraînement et de test CIFAR-10 avec une option de rotation 
-        pour simuler un changement de distribution au test."""
-    # return CIFAR-10 train/test datasets with optional rotation shift on test
+    """build cifar-10 train and test datasets."""
+    # add optional rotation shift on test data
     _require_torchvision()
     # training data uses standard augmentations
     train_dataset = datasets.CIFAR10(
@@ -210,9 +208,8 @@ def build_cifar10_loaders(
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[DataLoader, DataLoader]:
-    """Retourne les dataloaders d'entraînement et de test CIFAR-10 avec une option de rotation
-        pour simuler un changement de distribution au test."""
-    # return CIFAR-10 train/test dataloaders
+    """build cifar-10 train and test loaders."""
+    # build train and test datasets first
     train_dataset, test_dataset = build_cifar10_datasets(
         root=root,
         download=download,
@@ -237,7 +234,7 @@ def build_cifar10_loaders(
 
     return train_loader, test_loader
 
-# CIFAR-10-C dataset builder for TTT evaluation
+# cifar-10-c loader for ttt evaluation
 import numpy as np 
 from torch.utils.data import TensorDataset
 import torch
@@ -261,15 +258,13 @@ CIFAR10C_CORRUPTIONS = [
 ]
 
 def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size: int = 1, num_workers: int = 2) -> DataLoader:
-    """Charge un fichier .npy CIFAR-10-C pour une corrution et une sévérité données.
-    Structure du fichier attendu : root/CIFAR-10-C/<corruption>.npy + root/CIFAR-10-C/labels.npy
-    Chaque fichier .npy contient 50 000 images (10 000 par sévérité; dans l'ordre)."""
+    """load one cifar-10-c corruption and severity."""
     if corruption not in CIFAR10C_CORRUPTIONS:
         raise ValueError(f"Corruption inconnue: {corruption}")
     if not 1 <= severity <= 5:
-        raise ValueError(f"Sévérité doit être entre 1 et 5")
+        raise ValueError("severity must be between 1 and 5")
     
-    # charger les données et labels
+    # load data and labels
     data_path = Path(root) / "CIFAR-10-C" / f"{corruption}.npy"
     labels_path = Path(root) / "CIFAR-10-C" / "labels.npy"
     missing = [path for path in (data_path, labels_path) if not path.exists()]
@@ -284,18 +279,18 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     data = np.load(data_path) # shape (50000, 32, 32, 3), uint8
     labels = np.load(labels_path) # shape (50000,), int64
 
-    # sélectionner la tranche correspondant à la sévérité demandée
+    # select the requested severity slice
     start = (severity - 1) * 10_000
     end = severity * 10_000
     data = data[start:end]
     labels = labels[start:end]
 
-    # normalisation standard CIFAR-10
+    # standard cifar-10 normalization
     mean = np.array([0.4914, 0.4822, 0.4465])
     std = np.array([0.2023, 0.1994, 0.2010])
     data = data.astype(np.float32) / 255.0
     data = (data - mean) / std
-    data = torch.tensor(data, dtype=torch.float32).permute(0, 3, 1, 2) # shape (N, 3, 32, 32)
+    data = torch.tensor(data, dtype=torch.float32).permute(0, 3, 1, 2) # shape (n, 3, 32, 32)
     labels = torch.tensor(labels, dtype=torch.long)
 
     dataset = TensorDataset(data, labels)
