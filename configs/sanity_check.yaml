@@ -1,4 +1,4 @@
-experiment_name: ssl_pretrain_early_stopping
+experiment_name: ssl_sanity_check
 seed: 42
 
 dataset:
@@ -12,15 +12,15 @@ model:
 
 training:
   method: simclr
-  max_epochs: 200
-  patience: 40
+  max_epochs: 5
+  patience: 5
   min_delta: 0.0001
   batch_size: 256
   lr: 0.03
   temperature: 0.5
 
 linear_eval:
-  epochs: 100
+  epochs: 5
   lr: 0.001
   weight_decay: 0.0001
 

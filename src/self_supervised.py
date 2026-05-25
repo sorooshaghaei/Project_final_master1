@@ -64,6 +64,14 @@ class SimCLRModel(nn.Module):
     def __init__(self, config: SSLConfig):
         super().__init__()
         base = getattr(models, config.backbone)(weights=None)
+        
+        # --- FIX FOR CIFAR-10 ---
+        # Replace the 7x7 conv with a 3x3 conv (no stride)
+        base.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        # Remove the maxpool layer by replacing it with Identity
+        base.maxpool = nn.Identity()
+        # ------------------------
+        
         feat_dim = base.fc.in_features
         base.fc = nn.Identity()
         self.backbone = base
@@ -105,12 +113,7 @@ class SelfSupervisedTrainer:
         best_backbone_path: str | Path | None = None,
         last_backbone_path: str | Path | None = None,
     ):
-        """Run SimCLR pretraining with early stopping and checkpointing.
-
-        The loop uses max_epochs as a safety limit. Training stops earlier if the
-        average SSL loss does not improve by at least min_delta for patience
-        consecutive epochs.
-        """
+        """Run SimCLR pretraining with early stopping and checkpointing."""
         self.model.train()
         best_loss = float("inf")
         best_epoch = 0
