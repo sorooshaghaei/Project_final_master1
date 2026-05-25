@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from torchvision import models
 
 
@@ -16,6 +16,7 @@ class SSLConfig:
     temperature: float = 0.5
     projection_dim: int = 128
     backbone: str = "resnet18" # peut être changé selon les besoins
+    linear_eval_epochs: int = 30
 
 
 # Projection head SimCLR
@@ -96,8 +97,8 @@ class SelfSupervisedTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                self.scheduler.step()
                 total_loss += loss.item()
+            self.scheduler.step()
             print(f"Epoch {epoch+1}/{self.config.epochs}, Loss: {total_loss/len(train_loader):.4f}")
         return train_loader
 
@@ -113,7 +114,7 @@ class SelfSupervisedTrainer:
         clf = nn.Linear(self.model.feat_dim, num_classes).to(self.device) # num_classes doit être défini selon le dataset
         opt = torch.optim.Adam(clf.parameters(), lr=1e-3)
 
-        for epoch in range(30):
+        for epoch in range(self.config.linear_eval_epochs):
             clf.train()
             for x, y in train_loader: # on suppose que le dataloader retourne des échantillons non augmentés pour l'évaluation linéaire
                 x, y = x.to(self.device), y.to(self.device)

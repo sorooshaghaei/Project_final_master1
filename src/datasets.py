@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import random
 from typing import Optional, Sequence, Tuple
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Subset
 from pathlib import Path
 
 try:
@@ -97,6 +97,14 @@ def _require_torchvision() -> None:
         raise ImportError("torchvision is required to build CIFAR-10 datasets.")
 
 
+def _limit_dataset(dataset: Dataset, max_samples: Optional[int]) -> Dataset:
+    if max_samples is None:
+        return dataset
+    if max_samples <= 0:
+        raise ValueError("max_samples must be positive when provided.")
+    return Subset(dataset, range(min(max_samples, len(dataset))))
+
+
 def build_cifar10_transforms(train: bool) ->Any:
     """Retourne une composition de transformations pour CIFAR-10. Si train=True, inclut des augmentations de données."""
     # standard CIFAR-10 normalization
@@ -138,7 +146,13 @@ class TwoViewsTransform:
     def __call__(self, x):
         return self.t(x), self.t(x)
     
-def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, download: bool = False,) -> DataLoader:
+def build_simclr_loader(
+    root: str,
+    batch_size: int = 128,
+    num_workers: int = 2,
+    download: bool = False,
+    max_samples: Optional[int] = None,
+) -> DataLoader:
     """Loader pour le pré-entraînement SimCLR, qui retourne des paires augmentées d'une même image."""
     _require_torchvision()
     dataset = datasets.CIFAR10(
@@ -147,6 +161,7 @@ def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, d
         download=download,
         transform=TwoViewsTransform(),
     )
+    dataset = _limit_dataset(dataset, max_samples)
     return DataLoader(
         dataset, 
         batch_size=batch_size,
@@ -176,6 +191,8 @@ def build_cifar10_datasets(
     root: str,
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
+    max_train_samples: Optional[int] = None,
+    max_test_samples: Optional[int] = None,
 ) -> Tuple[Dataset, Dataset]:
     """Retourne les datasets d'entraînement et de test CIFAR-10 avec une option de rotation 
         pour simuler un changement de distribution au test."""
@@ -196,6 +213,9 @@ def build_cifar10_datasets(
         transform=build_cifar10_transforms(train=False),
     )
 
+    train_dataset = _limit_dataset(train_dataset, max_train_samples)
+    test_dataset = _limit_dataset(test_dataset, max_test_samples)
+
     if rotation_shift and rotation_shift.enabled:
         # wrap test set to apply rotation shift
         test_dataset = RotationShiftDataset(test_dataset, rotation_shift)
@@ -209,6 +229,8 @@ def build_cifar10_loaders(
     num_workers: int = 2,
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
+    max_train_samples: Optional[int] = None,
+    max_test_samples: Optional[int] = None,
 ) -> Tuple[DataLoader, DataLoader]:
     """Retourne les dataloaders d'entraînement et de test CIFAR-10 avec une option de rotation
         pour simuler un changement de distribution au test."""
@@ -217,6 +239,8 @@ def build_cifar10_loaders(
         root=root,
         download=download,
         rotation_shift=rotation_shift,
+        max_train_samples=max_train_samples,
+        max_test_samples=max_test_samples,
     )
 
     # shuffle training data, keep test order fixed
@@ -260,7 +284,14 @@ CIFAR10C_CORRUPTIONS = [
     "jpeg_compression",
 ]
 
-def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size: int = 1, num_workers: int = 2) -> DataLoader:
+def build_cifar10c_loader(
+    root: str,
+    corruption: str,
+    severity: int,
+    batch_size: int = 1,
+    num_workers: int = 2,
+    max_samples: Optional[int] = None,
+) -> DataLoader:
     """Charge un fichier .npy CIFAR-10-C pour une corrution et une sévérité données.
     Structure du fichier attendu : root/CIFAR-10-C/<corruption>.npy + root/CIFAR-10-C/labels.npy
     Chaque fichier .npy contient 50 000 images (10 000 par sévérité; dans l'ordre)."""
@@ -273,12 +304,16 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     data_path = Path(root) / "CIFAR-10-C" / f"{corruption}.npy"
     labels_path = Path(root) / "CIFAR-10-C" / "labels.npy"
 
-    data = np.load(data_path) # shape (50000, 32, 32, 3), uint8
-    labels = np.load(labels_path) # shape (50000,), int64
+    data = np.load(data_path, mmap_mode="r") # shape (50000, 32, 32, 3), uint8
+    labels = np.load(labels_path, mmap_mode="r") # shape (50000,), int64
 
     # sélectionner la tranche correspondant à la sévérité demandée
     start = (severity - 1) * 10_000
     end = severity * 10_000
+    if max_samples is not None:
+        if max_samples <= 0:
+            raise ValueError("max_samples must be positive when provided.")
+        end = min(end, start + max_samples)
     data = data[start:end]
     labels = labels[start:end]
 

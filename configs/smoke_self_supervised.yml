@@ -1,0 +1,33 @@
+experiment_name: smoke_ssl_5min
+seed: 42
+
+dataset:
+  name: cifar10
+  root: data/raw
+  download: false
+  num_workers: 0
+  max_simclr_samples: 128
+  max_train_samples: 128
+  max_test_samples: 128
+
+model:
+  backbone: resnet18
+  embedding_dim: 64
+
+training:
+  method: simclr
+  epochs: 5
+  linear_eval_epochs: 5
+  batch_size: 32
+  lr: 0.0003
+
+source_stats:
+  compute: true
+  save_path: results/smoke/self_supervised/source_stats.pt
+  loader: val
+
+logging:
+  output_dir: results/smoke/self_supervised
+  classifier_path: results/smoke/self_supervised/classifier.pt
+  save_backbone: true
+  backbone_path: results/smoke/self_supervised/simclr_backbone.pt

@@ -58,3 +58,14 @@ Short aliases are also accepted:
 python run.py --task ssl --config configs/self_supervised.yaml
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
+
+## Smoke Test
+Use these configs for a fast local check before running the full experiment:
+```bash
+python run.py --task ssl --config configs/smoke_self_supervised.yml
+python run.py --task ttt --config configs/smoke_test_time_training.yml
+```
+
+The SSL smoke run creates temporary checkpoints in `results/smoke/self_supervised/`.
+Run it before the TTT smoke test so the TTT config can load the smoke backbone,
+classifier, and source statistics.
