@@ -1,4 +1,4 @@
-# download CIFAR-10 into data/raw so everyone shares the same path
+# download cifar-10 into data/raw so everyone shares the same path
 
 from __future__ import annotations
 

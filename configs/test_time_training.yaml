@@ -1,13 +1,20 @@
-experiment_name: ttt_baseline_rotation
+experiment_name: ttt_actmad_cifar10c
 seed: 42
 
 dataset:
   name: cifar10c
   root: data/raw/cifar10c
   download: false
-  corruption: shot_noise #brightness(-) #fog(+), frost(-), shot_noise(+), gaussian_noise(+)
+  allow_synthetic_fallback: true
+  corruption: shot_noise
+  corruptions:
+    - gaussian_noise
+    - shot_noise
+    - fog
+    - brightness
   severity: 5
   batch_size: 16
+  num_workers: 0
   rotation_shift:
     enabled: false
     mode: random
@@ -18,7 +25,7 @@ dataset:
 model:
   backbone: resnet18
   num_classes: 10
-  checkpoint: results/self_supervised/simclr_backbone.pt
+  checkpoint: results/self_supervised/best_backbone.pt
 
 adaptation:
   method: actmad

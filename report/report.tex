@@ -1,0 +1,299 @@
+\documentclass[a4paper,11pt]{article}
+
+% -------------------------------------------------
+% ENCODING / LANGUAGE
+% -------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+% -------------------------------------------------
+% MATH / SCIENCE
+% -------------------------------------------------
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+
+% -------------------------------------------------
+% LAYOUT / STYLE
+% -------------------------------------------------
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.25cm,right=2.25cm]{geometry}
+\usepackage{setspace}
+\usepackage{indentfirst}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage[numbers]{natbib}
+\usepackage{float}
+
+\onehalfspacing
+\setlength{\parskip}{0.2em}
+\setlength{\parindent}{15pt}
+
+% -------------------------------------------------
+% HYPERREF
+% -------------------------------------------------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue,
+    pdftitle={Self-Supervised Test-Time Training for Image Classification},
+    pdfauthor={Rayane KHATIM, Mehdi AGHAEI},
+    pdfsubject={Research project},
+    pdfkeywords={test-time training, SimCLR, CIFAR-10-C, ActMAD}
+}
+
+% -------------------------------------------------
+% CODE LISTINGS
+% -------------------------------------------------
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    numbers=none
+}
+
+% -------------------------------------------------
+% HEADER / FOOTER
+% -------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Paris Cite University}
+\fancyhead[R]{Rayane KHATIM - Mehdi AGHAEI}
+\fancyfoot[L]{Research Project}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\setlength{\headheight}{14pt}
+
+% -------------------------------------------------
+% SECTION STYLE
+% -------------------------------------------------
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+% -------------------------------------------------
+% CUSTOM COMMANDS
+% -------------------------------------------------
+\newcommand{\MainTitle}{RESEARCH PROJECT}
+\newcommand{\ProjectTitle}{Self-Supervised Test-Time Training for Image Classification}
+\newcommand{\ReportDate}{MAY 2026}
+\newcommand{\InstitutionName}{PARIS CITE UNIVERSITY}
+
+\begin{document}
+
+% =================================================
+% COVER PAGE
+% =================================================
+\begin{titlepage}
+    \thispagestyle{empty}
+
+    \begin{center}
+        {\Large \InstitutionName \par}
+    \end{center}
+
+    \vspace{2.0cm}
+
+    \begin{center}
+        {\fontsize{20}{25}\selectfont \bfseries \MainTitle \par}
+        \vspace{0.6cm}
+        {\fontsize{15}{20}\selectfont \bfseries \ProjectTitle \par}
+        \vspace{1.2cm}
+        {\Large \ReportDate \par}
+    \end{center}
+
+    \vspace{1.4cm}
+    \hrule
+    \vspace{1.3cm}
+
+    \begin{center}
+        {\Large \textbf{Authors:}}
+    \end{center}
+
+    \begin{center}
+    \begin{tabular}{c @ {\hspace{2cm}} c}
+    \textbf{Rayane KHATIM} & \textbf{Mehdi AGHAEI} \\[0.2cm]
+    rayane.khatim@etu.u-paris.fr & mehdi.aghaei@etu.u-paris.fr \\[0.2cm]
+    22500285 & 22500371 \\
+    \end{tabular}
+    \end{center}
+
+    \vspace{1.2cm}
+
+    \begin{center}
+        {\Large \textbf{Supervisor:}}\\[0.25cm]
+        \textbf{Prof. Ayoub Karin}
+    \end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =================================================
+\section{Introduction and Context}
+
+Image classification works well when the test images stay close to the images used during training. In practice, this is not always the case. An image can be noisy, blurry, overexposed, compressed, or simply different from the learned examples. In this case, the model sees a slightly different distribution, and its accuracy can drop a lot.
+
+This project studies this problem with CIFAR-10 and CIFAR-10-C. CIFAR-10 is the clean source domain, while CIFAR-10-C adds standard corruptions such as Gaussian noise, fog, or JPEG compression. The goal is not to create a new deep network, but to test an adaptation strategy at test time.
+
+The main idea is Test-Time Training (TTT). The model receives an unlabeled test batch, makes a small adaptation with a self-supervised loss, and then predicts the labels. In our implementation, the adaptation uses an idea close to ActMAD: aligning the activation statistics of the target batch with the statistics observed on the source data.
+
+% =================================================
+\section{Related Work}
+
+Classic supervised learning trains a model with image-label pairs. For CIFAR-10, this means learning to recognize ten classes from annotated images. This approach is simple and effective, but it assumes that the test images follow a distribution close to the training distribution.
+
+Self-supervised learning tries to learn representations without directly using labels. SimCLR is a contrastive method: two augmented views of the same image should produce close representations, while representations from different images should stay separated \cite{simclr2020}. This step gives a backbone that extracts useful features before training a linear classifier.
+
+Test-Time Training uses a self-supervised task during inference to adapt the model to the target distribution \cite{ttt2020}. This idea is useful, but it does not always improve the results. Some work shows that success depends on the self-supervised task, the type of distribution shift, and the stability of the adaptation \cite{ttt2021}.
+
+CIFAR-10-C is a benchmark used to measure robustness to common corruptions \cite{cifar10c}. In this project, it is used to compare a baseline prediction without adaptation with a prediction after TTT. The ActMAD part uses internal network statistics, especially in normalization layers, to move the corrupted batch closer to the activations of the source distribution \cite{actmad}.
+
+% =================================================
+\section{Developed Method}
+
+The method followed in the project is organized into four steps.
+
+First, the ResNet18 backbone is pretrained with SimCLR on CIFAR-10. For each image, the loader produces two augmented views. The network passes these two views through the backbone and a projection head. The NT-Xent loss brings the two views of the same image closer and separates the other examples in the batch.
+
+Then, a linear classifier is trained on the features from the frozen backbone. This step gives a simple measure of the quality of the learned representations. The backbone is not modified during this linear evaluation.
+
+After that, source statistics are computed on the backbone activations. The means and standard deviations of BatchNorm or LayerNorm layers are recorded on the source set. These statistics are saved in \texttt{results/self\_supervised/source\_stats.pt}.
+
+Finally, during testing on CIFAR-10-C, two evaluations are done. The first one is the baseline without adaptation. The second one applies ActMAD TTT: for each target batch, a temporary copy of the model is adapted for a few steps, only on the normalization parameters, and then used to predict the classes.
+
+% =================================================
+\section{Implementation}
+
+The file \texttt{run.py} remains the main entry point. It accepts two tasks: \texttt{self\_supervised} for SimCLR pretraining and \texttt{test\_time\_training} for TTT evaluation. The aliases \texttt{ssl} and \texttt{ttt} are also kept.
+
+The file \texttt{src/self\_supervised.py} contains the SimCLR model, the NT-Xent loss, self-supervised training, and linear evaluation. The main change is in the training loop. Instead of directly forcing 100 epochs, the code now uses a maximum number of epochs with early stopping. The default configuration is:
+
+\begin{lstlisting}
+max_epochs: 50
+patience: 7
+min_delta: 0.001
+\end{lstlisting}
+
+This solution is more correct than a fixed number of 100 epochs, because it avoids continuing for no reason when the SimCLR loss barely improves. The cosine scheduler is also corrected: it is called at the end of each epoch, which matches its \texttt{T\_max} parameter expressed as a number of epochs.
+
+The checkpoints are saved in:
+
+\begin{lstlisting}
+results/self_supervised/best_backbone.pt
+results/self_supervised/last_backbone.pt
+results/self_supervised/simclr_backbone.pt
+results/self_supervised/classifier.pt
+results/self_supervised/training_log.csv
+\end{lstlisting}
+
+The file \texttt{src/test\_time\_training.py} contains the ActMAD adapter. It keeps the existing logic: copying the model for each batch, freezing most parameters, and adapting the normalization layers with an activation alignment loss.
+
+The file \texttt{src/datasets.py} builds the CIFAR-10 and CIFAR-10-C loaders. The file \texttt{src/metrics.py} provides top-1 accuracy and baseline/TTT evaluation. The script \texttt{scripts/eval\_corruption.py} evaluates all CIFAR-10-C corruptions and writes a CSV results file.
+
+% =================================================
+\section{Experimental Study and Results}
+
+The experimental protocol was run in three parts. First, SimCLR was pretrained on CIFAR-10. Then, a linear classifier was trained on the frozen backbone to measure the quality of the learned representation. Finally, the model was evaluated with and without ActMAD-style Test-Time Training on corrupted test images.
+
+The self-supervised training ran for the maximum limit of 50 epochs. Early stopping did not stop the run earlier, because the loss was still improving slightly near the end. The average SimCLR loss decreased from 5.6214 at epoch 1 to 4.7246 at epoch 50. The lowest loss was 4.7222 at epoch 49, so the best checkpoint was saved from epoch 49 instead of automatically using the last epoch.
+
+The linear evaluation accuracy obtained after training was \textbf{59.08\%}. This value is not a final state-of-the-art score, but it shows that the backbone learned useful features from the self-supervised pretraining.
+
+For the TTT evaluation, the full CIFAR-10-C files were not installed locally. The code therefore used the fallback implemented in the project: it generated lightweight corrupted versions from the CIFAR-10 test batch. This is useful for testing the method and comparing the baseline with TTT, but it should not be presented as a complete CIFAR-10-C benchmark. Each corruption was evaluated on 10,000 images with severity 5.
+
+\begin{table}[H]
+\centering
+\caption{Baseline and ActMAD TTT results on the evaluated corruptions. Accuracy values are measured, not placeholders.}
+\begin{tabular}{lcccc}
+\toprule
+Corruption & Severity & Baseline accuracy & TTT accuracy & Improvement \\
+\midrule
+gaussian\_noise & 5 & 16.82\% & 29.01\% & +12.19 pp \\
+shot\_noise & 5 & 15.62\% & 26.39\% & +10.77 pp \\
+fog & 5 & 55.76\% & 54.90\% & -0.86 pp \\
+brightness & 5 & 56.51\% & 52.91\% & -3.60 pp \\
+\midrule
+Mean & -- & 36.18\% & 40.80\% & +4.63 pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The results show that TTT helped clearly on the two noise corruptions. On \texttt{gaussian\_noise}, the accuracy increased from 16.82\% to 29.01\%, which is a gain of 12.19 percentage points. On \texttt{shot\_noise}, the gain was 10.77 percentage points. These two cases suggest that activation matching can help when the corruption strongly changes the image statistics.
+
+The result is different for \texttt{fog} and \texttt{brightness}. For fog, the accuracy decreased slightly from 55.76\% to 54.90\%. For brightness, the decrease was larger, from 56.51\% to 52.91\%. This means that the adaptation is not always useful. In these cases, the TTT objective may move the normalization statistics in a direction that does not improve classification.
+
+Overall, the mean accuracy increased from 36.18\% to 40.80\%, with an average gain of 4.63 percentage points on the four evaluated corruptions. This average is positive, but it hides the fact that the improvement depends strongly on the type of corruption.
+
+The real results are saved in:
+
+\begin{lstlisting}
+results/test_time_training/results.csv
+\end{lstlisting}
+% =================================================
+\section{Discussion}
+
+Replacing the fixed 100 epochs with early stopping is a simple but important improvement. With 100 fixed epochs, the project assumed that more training always gives a better backbone. This is not guaranteed. In the run used for this report, the model reached the maximum of 50 epochs because the loss was still improving slightly, but the best checkpoint still came from epoch 49 rather than the final epoch.
+
+The linear evaluation accuracy of 59.08\% is acceptable for this small student implementation, especially because the project does not use a large model or a long hyperparameter search. The result also shows the limit of the current setting. SimCLR is sensitive to augmentations, batch size, projection head design, and training length. A better representation could probably be obtained with more careful tuning, but that would make the project heavier and less focused on the TTT part.
+
+The TTT results are mixed, which is important. ActMAD-style adaptation improved the two noise corruptions, especially \texttt{gaussian\_noise} and \texttt{shot\_noise}. This makes sense because these corruptions strongly disturb the activation statistics, so matching target activations with source statistics can help recover a more useful internal distribution.
+
+However, TTT decreased the accuracy on \texttt{fog} and \texttt{brightness}. This shows that adaptation at test time is not automatically safe. If the adaptation loss is not well aligned with the classification objective, the model can adapt in the wrong direction. A corrupted batch may contain useful information, but it may also push the normalization parameters away from a better solution.
+
+Another limitation is the dataset used in this run. The full CIFAR-10-C archive was not available locally, so the experiment used the fallback synthetic corruptions generated from the CIFAR-10 test set. This is enough to verify that the code runs and that the baseline/TTT comparison works, but a stronger experimental study should use the official CIFAR-10-C files and evaluate all corruptions and several severity levels.
+
+For this reason, the results should be read as a first validation of the implementation, not as a definitive benchmark. The positive average gain is encouraging, but the negative cases are just as important because they show where the method is unstable.
+% =================================================
+\section{Final Remarks and Future Work}
+
+The project keeps its original structure: SimCLR, ResNet18, CIFAR-10, CIFAR-10-C style corruptions, and ActMAD Test-Time Training. The main changes made the experiment cleaner. Pretraining no longer depends on an arbitrary fixed choice of 100 epochs. It now uses a maximum number of epochs, early stopping logic, a best checkpoint, a last checkpoint, and a CSV training log.
+
+The final run gave a linear evaluation accuracy of 59.08\%. On the four evaluated corruptions, the baseline reached 36.18\% mean accuracy, while TTT reached 40.80\%. The average gain was therefore +4.63 percentage points. This improvement came mainly from the two noise corruptions, while fog and brightness became slightly worse after adaptation.
+
+The next step would be to install the official CIFAR-10-C files, run all corruptions, and compare several severity levels. It would also be useful to test different adaptation steps and batch sizes, because TTT can be unstable when the test batch does not give a good adaptation signal.
+% =================================================
+\section{References}
+
+\begin{thebibliography}{9}
+
+\bibitem{simclr2020}
+T. Chen, S. Kornblith, M. Norouzi and G. Hinton.
+\textit{A Simple Framework for Contrastive Learning of Visual Representations}.
+ICML, 2020.
+
+\bibitem{ttt2020}
+Y. Sun, X. Wang, Z. Liu, J. Miller, A. A. Efros and M. Hardt.
+\textit{Test-Time Training with Self-Supervision for Generalization under Distribution Shifts}.
+ICML, 2020.
+
+\bibitem{ttt2021}
+Y. Liu, P. Kothari, B. Van Delft, B. Bellot-Gurlet, T. Mordan and A. Alahi.
+\textit{When Does Self-Supervised Test-Time Training Fail or Thrive?}
+NeurIPS, 2021.
+
+\bibitem{cifar10c}
+D. Hendrycks and T. Dietterich.
+\textit{Benchmarking Neural Network Robustness to Common Corruptions and Perturbations}.
+ICLR, 2019.
+
+\bibitem{actmad}
+Authors of the reference paper used in the project.
+\textit{ActMAD: Activation Matching to Align Distributions for Test-Time Training}.
+Paper provided in the project folder.
+
+\end{thebibliography}
+
+\end{document}

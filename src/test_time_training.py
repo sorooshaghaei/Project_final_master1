@@ -1,4 +1,4 @@
-# base interface for TTT methods
+# base interface for ttt methods
 import torch 
 import torch.nn as nn
 import copy
@@ -10,12 +10,12 @@ class TTTConfig:
     lr: float = 1e-4
     steps_per_batch: int = 10
     adaptation_task: str = "actmad" # "actmad" | "rotation"
-    layers: str = "bn"              # "bn" = BN/LN seulement
+    layers: str = "bn"              # "bn" = bn/ln only
 
 
-# Hooks d'activation
+# activation hooks
 class ActivationStats:
-    """Classe utilitaire pour enregistrer les activations intermédiaires des couches BN/LN pendant l'adaptation TTT."""
+    """Utility class for storing intermediate BN/LN activations during TTT adaptation."""
     def __init__(self):
         self.hooks = []
         self.activations = {}
@@ -40,16 +40,15 @@ class ActivationStats:
         self.hooks.clear()
 
 def _bn_layer_names(model) -> list:
-    """ Retourne les noms des toutes les BN/LN du modèle pour l'adaptation TTT."""
+    """Return all BN/LN layer names used for TTT adaptation."""
     return [ 
         name for name, m in model.named_modules()
         if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm, nn.BatchNorm1d))
     ]
 
-# Calcul des statistiques source pour ACTMAD
+# source statistics for actmad
 def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
-    """Calcule et sauvegarde les statistiques d'activation (moyenne et écart-type)
-    des couches BN/LN du modèle sur un ensemble de validation source, pour une utilisation ultérieure dans l'adaptation TTT ActMAD."""
+    """Compute and save BN/LN activation statistics on a source validation set for ActMAD TTT."""
     hook = ActivationStats()
     names = _bn_layer_names(model)
     hook.register(model, names)
@@ -76,15 +75,18 @@ def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
         for name, v in accum.items()
     }
     hook.remove()
+    import os
+    os.makedirs(os.path.dirname(save_path), exist_ok=True) if os.path.dirname(save_path) else None
     torch.save(stats, save_path)
-    print(f"[ActMAD] Statistiques sources sauvegardées dans {save_path}")
+    print(f"[ActMAD] source statistics saved to {save_path}")
     return stats
 
-# Perte d'adaptation ActMAD
+# actmad adaptation loss
 def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
-    """Calcule la perte d'adaptation ActMAD en comparant les statistiques d'activation du batch cible
-        avec les statistiques source préalablement calculées."""
-    loss = torch.zeros(1, device=next(iter(hook.activations.values())).device, requires_grad=True). squeeze()
+    """Compute the ActMAD adaptation loss by comparing target-batch and source activation statistics."""
+    if not hook.activations:
+        raise RuntimeError("No activations were captured for ActMAD. Check the selected layers.")
+    loss = torch.zeros(1, device=next(iter(hook.activations.values())).device, requires_grad=True).squeeze()
     count = 0
     for name, act in hook.activations.items():
         if name not in source_stats:
@@ -105,23 +107,19 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
 
 
 class TTTAdapter:
-    # minimal TTT adapter skeleton
-    """Classe d'adaptation pour Test-Time Training (TTT) qui encapsule un modèle pré-entraîné
-        et fournit des méthodes pour l'adaptation en temps réel sur des batches de données cibles non étiquetées,
-        en utilisant une perte d'adaptation auto-supervisée (ex: ActMAD)."""
+    """Test-Time Training adapter for an already trained model using an unlabeled target batch."""
     def __init__(self, model, config: TTTConfig, source_stats: dict):
         # store config for adaptation settings
         self.config = config
         self.source_stats = source_stats
-        self._base_model = model # modèle original non modifié
+        self._base_model = model # original model, unchanged
 
     def adapt_on_batch(self, x: torch.Tensor) -> torch.Tensor:
-        # adapt model parameters using unlabeled target batch
-        # todo implement self-supervised adaptation objective
+        # adapt a temporary copy of the model on the unlabeled target batch
         model = copy.deepcopy(self._base_model)
         model.train()
 
-        # Geler tous les paramètres sauf les BN/LN
+        # freeze all parameters except bn/ln
         for p in model.parameters():
             p.requires_grad = False
         for m in model.modules():
@@ -137,7 +135,7 @@ class TTTAdapter:
             lr=self.config.lr
         )
 
-        # Boucle d'adaptation
+        # adaptation loop
         for _ in range(self.config.steps_per_batch):
             opt.zero_grad()
             hook.clear()
@@ -146,7 +144,7 @@ class TTTAdapter:
             loss.backward()
             opt.step()
 
-        # Inférence avec le modèle adapté
+        # inference with the adapted model
         model.eval()
         hook.clear()
         with torch.no_grad():
@@ -156,8 +154,7 @@ class TTTAdapter:
         return logits
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
-        # run inference after adaptation
-        # todo replace with actual model forward pass
+        # standard inference without target-batch adaptation
         self._base_model.eval()
         with torch.no_grad():
             return self._base_model(x)

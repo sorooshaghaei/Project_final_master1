@@ -1,65 +1,116 @@
-# Project_final_master1
-TER M1 project focused on Test-Time Training and Self-Supervised Learning.
+# TER - Self-Supervised Test-Time Training for Image Classification
 
-## Authors
-Rayane KHATIM, Mehdi AGHAEI  
-Universite Paris Cite
+M1 TER project on test-time adaptation for image classification.
 
-## Clean Structure
-```
-Project_final_master1/
-├── README.md
-├── LICENSE
-├── run.py
-├── papers/
-│   ├── 1_sun20.pdf
-│   ├── 3_When_test_time_Adaptation.pdf
-│   └── TER2.pdf
-├── docs/
-│   └── project_tracking.md
-├── notebooks/
-│   ├── basicUnderstanding.ipynb
-│   └── choose_paper_for_TER.ipynb
-├── src/
-│   ├── __init__.py
-│   ├── datasets.py
-│   ├── test_time_training.py
-│   ├── self_supervised.py
-│   └── metrics.py
-├── configs/
-│   ├── test_time_training.yaml
-│   └── self_supervised.yaml
-└── data/
-    ├── raw/
-    ├── interim/
-    └── processed/
-```
+The project keeps the original structure: SimCLR, ResNet18, CIFAR-10, CIFAR-10-C, and ActMAD adaptation. The main changes are in the training loop, reproducibility, checkpoints, and logs.
 
-## What Each Part Means
-- `papers/`: your TER PDFs and reference papers.
-- `docs/project_tracking.md`: links for presentations/progress PPTs + weekly decisions.
-- `notebooks/`: exploration notebooks and paper-choice notebook.
-- `src/test_time_training.py`: code skeleton for test-time adaptation/training.
-- `src/self_supervised.py`: code skeleton for self-supervised training.
-- `src/datasets.py`: dataset metadata/registry.
-- `src/metrics.py`: evaluation helpers (accuracy, etc.).
-- `configs/*.yaml`: experiment parameters (model, data path, hyperparameters).
-- `data/raw`, `data/interim`, `data/processed`: dataset lifecycle.
-- `run.py`: single entrypoint to run either track.
+## Installation
 
-## Run
+Create a Python environment and install the main dependencies:
+
 ```bash
-cd Project_final_master1
-python run.py --task self_supervised --config configs/self_supervised.yaml
-
-Run `self_supervised` first. It creates the files expected by TTT:
-`results/self_supervised/simclr_backbone.pt`,
-`results/self_supervised/classifier.pt`, and
-`results/self_supervised/source_stats.pt`.
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Short aliases are also accepted:
+If `torch` or `torchvision` do not install correctly on your machine, install them with the command for your system from the official PyTorch website, then run:
+
+```bash
+pip install numpy pyyaml
+```
+
+## Self-Supervised Training
+
+```bash
+python run.py --task self_supervised --config configs/self_supervised.yaml
+```
+
+Equivalent alias:
+
 ```bash
 python run.py --task ssl --config configs/self_supervised.yaml
+```
+
+This step creates:
+
+```text
+results/self_supervised/best_backbone.pt
+results/self_supervised/last_backbone.pt
+results/self_supervised/simclr_backbone.pt
+results/self_supervised/classifier.pt
+results/self_supervised/source_stats.pt
+results/self_supervised/training_log.csv
+```
+
+The configuration no longer uses a fixed 100 epochs. It uses:
+
+```yaml
+max_epochs: 50
+patience: 7
+min_delta: 0.001
+```
+
+The model stops earlier if the SimCLR loss does not improve enough.
+
+## Test-Time Training Evaluation
+
+Before this step, self-supervised training must already have been run.
+
+CIFAR-10-C should be placed here:
+
+```text
+data/raw/cifar10c/CIFAR-10-C/
+```
+
+with the `.npy` files, for example:
+
+```text
+gaussian_noise.npy
+shot_noise.npy
+labels.npy
+```
+
+CIFAR-10-C is optional for a quick TER test. If these files are missing and `allow_synthetic_fallback: true` is set in the config, the code uses lightweight synthetic corruptions generated from the CIFAR-10 test batch. This fallback is for demonstration and TER testing, not a replacement for a full CIFAR-10-C evaluation.
+
+Run the evaluation:
+
+```bash
+python run.py --task test_time_training --config configs/test_time_training.yaml
+```
+
+Equivalent alias:
+
+```bash
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
+
+The results are saved in:
+
+```text
+results/test_time_training/results.csv
+```
+
+## Evaluate All CIFAR-10-C Corruptions
+
+```bash
+python scripts/eval_corruption.py
+```
+
+This script runs through the 15 CIFAR-10-C corruptions at severity 5 and also writes:
+
+```text
+results/test_time_training/results.csv
+```
+
+## Report
+
+The LaTeX report is in:
+
+```text
+report/report.tex
+report/references.bib
+report/report.pdf
+```
+
+The numerical results are not invented in the report. The experimental table should be filled after the commands are actually run.
