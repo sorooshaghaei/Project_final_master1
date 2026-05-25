@@ -54,6 +54,8 @@ class SimCLRModel(nn.Module):
     def __init__(self, config: SSLConfig):
         super().__init__()
         base = getattr(models, config.backbone)(weights=None)
+        base.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False) # adapté pour CIFAR-10 32x32
+        base.maxpool = nn.Identity() # supprimer le maxpool pour conserver plus de détails
         feat_dim = base.fc.in_features
         base.fc = nn.Identity() # On enlève la tête de classification
         self.backbone = base
