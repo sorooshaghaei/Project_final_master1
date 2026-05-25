@@ -272,6 +272,14 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     # charger les données et labels
     data_path = Path(root) / "CIFAR-10-C" / f"{corruption}.npy"
     labels_path = Path(root) / "CIFAR-10-C" / "labels.npy"
+    missing = [path for path in (data_path, labels_path) if not path.exists()]
+    if missing:
+        missing_text = "\n".join(f"- {path}" for path in missing)
+        raise FileNotFoundError(
+            "CIFAR-10-C files are missing.\n"
+            f"Missing:\n{missing_text}\n"
+            "Place the CIFAR-10-C .npy files under data/raw/cifar10c/CIFAR-10-C/."
+        )
 
     data = np.load(data_path) # shape (50000, 32, 32, 3), uint8
     labels = np.load(labels_path) # shape (50000,), int64

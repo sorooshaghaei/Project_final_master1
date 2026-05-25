@@ -49,12 +49,17 @@ Project_final_master1/
 
 ## Run
 ```bash
-python run.py --task test_time_training --config configs/test_time_training.yaml
+cd Project_final_master1
 python run.py --task self_supervised --config configs/self_supervised.yaml
+
+Run `self_supervised` first. It creates the files expected by TTT:
+`results/self_supervised/simclr_backbone.pt`,
+`results/self_supervised/classifier.pt`, and
+`results/self_supervised/source_stats.pt`.
 ```
 
 Short aliases are also accepted:
 ```bash
-python run.py --task ttt --config configs/test_time_training.yaml
 python run.py --task ssl --config configs/self_supervised.yaml
+python run.py --task ttt --config configs/test_time_training.yaml
 ```
