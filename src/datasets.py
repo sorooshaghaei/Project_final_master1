@@ -135,7 +135,7 @@ class TwoViewsTransform:
 def build_simclr_loader(
     root: str,
     batch_size: int = 128,
-    num_workers: int = 2,
+    num_workers: int = 4,
     download: bool = False,
 ) -> DataLoader:
     """Loader for SimCLR pretraining that returns augmented pairs from the same image."""
@@ -198,7 +198,7 @@ def build_cifar10_datasets(
 def build_cifar10_loaders(
     root: str,
     batch_size: int = 128,
-    num_workers: int = 2,
+    num_workers: int = 4,
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[DataLoader, DataLoader]:
