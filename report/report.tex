@@ -30,6 +30,7 @@
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{titlesec}
+\usepackage{tocloft}
 \usepackage{caption}
 \usepackage{listings}
 \usepackage[numbers]{natbib}
@@ -84,6 +85,19 @@
 \titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
 \titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+% -------------------------------------------------
+% COMPACT TABLE OF CONTENTS
+% -------------------------------------------------
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{0.35em}
+\setlength{\cftbeforesecskip}{0.12em}
+\setlength{\cftbeforesubsecskip}{0pt}
+\renewcommand{\cfttoctitlefont}{\large\bfseries}
+\renewcommand{\cftsecfont}{\small\bfseries}
+\renewcommand{\cftsecpagefont}{\small\bfseries}
+\renewcommand{\cftsubsecfont}{\small}
+\renewcommand{\cftsubsecpagefont}{\small}
 
 % -------------------------------------------------
 % CUSTOM COMMANDS
@@ -158,7 +172,13 @@ rayane.khatim@etu.u-paris.fr & mehdi.aghaei@etu.u-paris.fr \\[0.2cm]
 
 \end{titlepage}
 
+\begingroup
+\singlespacing
+\small
+\setlength{\parskip}{0pt}
+\setcounter{tocdepth}{2}
 \tableofcontents
+\endgroup
 \newpage
 
 % =================================================
