@@ -12,12 +12,17 @@ model:
 
 training:
   method: simclr
-  max_epochs: 50
-  patience: 7
-  min_delta: 0.001
-  batch_size: 256
+  max_epochs: 32
+  patience: 12
+  min_delta: 0.0005
+  batch_size: 128
   lr: 0.03
   temperature: 0.5
+
+linear_eval:
+  epochs: 32
+  lr: 0.001
+  weight_decay: 0.0001
 
 source_stats:
   compute: true

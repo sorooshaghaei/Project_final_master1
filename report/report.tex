@@ -172,22 +172,23 @@ Then, a linear classifier is trained on the features from the frozen backbone. T
 
 After that, source statistics are computed on the backbone activations. The means and standard deviations of BatchNorm or LayerNorm layers are recorded on the source set. These statistics are saved in \texttt{results/self\_supervised/source\_stats.pt}.
 
-Finally, during testing on CIFAR-10-C, two evaluations are done. The first one is the baseline without adaptation. The second one applies ActMAD TTT: for each target batch, a temporary copy of the model is adapted for a few steps, only on the normalization parameters, and then used to predict the classes.
+Finally, during testing on CIFAR-10-C, two evaluations are done. The first one is the baseline without adaptation. The second one applies ActMAD TTT: for each target batch, a fresh copy of the model is adapted for a few steps, only on the normalization parameters, and then used to predict the classes.
 
 % =================================================
 \section{Implementation}
 
 The file \texttt{run.py} remains the main entry point. It accepts two tasks: \texttt{self\_supervised} for SimCLR pretraining and \texttt{test\_time\_training} for TTT evaluation. The aliases \texttt{ssl} and \texttt{ttt} are also kept.
 
-The file \texttt{src/self\_supervised.py} contains the SimCLR model, the NT-Xent loss, self-supervised training, and linear evaluation. The main change is in the training loop. Instead of directly forcing 100 epochs, the code now uses a maximum number of epochs with early stopping. The default configuration is:
+The self-supervised module contains the SimCLR model, the NT-Xent loss, self-supervised training, and linear evaluation. The training loop uses a maximum number of epochs with early stopping. The current configuration is:
 
 \begin{lstlisting}
-max_epochs: 50
-patience: 7
-min_delta: 0.001
+max_epochs: 32
+patience: 12
+min_delta: 0.0005
+batch_size: 128
 \end{lstlisting}
 
-This solution is more correct than a fixed number of 100 epochs, because it avoids continuing for no reason when the SimCLR loss barely improves. The cosine scheduler is also corrected: it is called at the end of each epoch, which matches its \texttt{T\_max} parameter expressed as a number of epochs.
+This keeps early stopping and uses a smaller batch size for easier local runs. The cosine scheduler is called at the end of each epoch, which matches its \texttt{T\_max} parameter expressed as a number of epochs.
 
 The checkpoints are saved in:
 
@@ -201,14 +202,14 @@ results/self_supervised/training_log.csv
 
 The file \texttt{src/test\_time\_training.py} contains the ActMAD adapter. It keeps the existing logic: copying the model for each batch, freezing most parameters, and adapting the normalization layers with an activation alignment loss.
 
-The file \texttt{src/datasets.py} builds the CIFAR-10 and CIFAR-10-C loaders. The file \texttt{src/metrics.py} provides top-1 accuracy and baseline/TTT evaluation. The script \texttt{scripts/eval\_corruption.py} evaluates all CIFAR-10-C corruptions and writes a CSV results file.
+The dataset module builds the CIFAR-10 and CIFAR-10-C loaders. The metrics module provides top-1 accuracy and baseline/TTT evaluation. The script \texttt{eval\_corruption.py} evaluates all CIFAR-10-C corruptions and writes a CSV results file.
 
 % =================================================
 \section{Experimental Study and Results}
 
 The experimental protocol was run in three parts. First, SimCLR was pretrained on CIFAR-10. Then, a linear classifier was trained on the frozen backbone to measure the quality of the learned representation. Finally, the model was evaluated with and without ActMAD-style Test-Time Training on corrupted test images.
 
-The self-supervised training ran for the maximum limit of 50 epochs. Early stopping did not stop the run earlier, because the loss was still improving slightly near the end. The average SimCLR loss decreased from 5.6214 at epoch 1 to 4.7246 at epoch 50. The lowest loss was 4.7222 at epoch 49, so the best checkpoint was saved from epoch 49 instead of automatically using the last epoch.
+The training loss decreased from 5.6214 to 4.7222, which shows that the self-supervised model was learning during training. The strongest improvement happened during the first epochs, while later epochs only gave small gains. The best checkpoint was obtained at epoch 49, not at the final epoch.
 
 The linear evaluation accuracy obtained after training was \textbf{59.08\%}. This value is not a final state-of-the-art score, but it shows that the backbone learned useful features from the self-supervised pretraining.
 
@@ -216,7 +217,7 @@ For the TTT evaluation, the full CIFAR-10-C files were not installed locally. Th
 
 \begin{table}[H]
 \centering
-\caption{Baseline and ActMAD TTT results on the evaluated corruptions. Accuracy values are measured, not placeholders.}
+\caption{Baseline and ActMAD TTT results on the evaluated corruptions.}
 \begin{tabular}{lcccc}
 \toprule
 Corruption & Severity & Baseline accuracy & TTT accuracy & Improvement \\
@@ -245,7 +246,7 @@ results/test_time_training/results.csv
 % =================================================
 \section{Discussion}
 
-Replacing the fixed 100 epochs with early stopping is a simple but important improvement. With 100 fixed epochs, the project assumed that more training always gives a better backbone. This is not guaranteed. In the run used for this report, the model reached the maximum of 50 epochs because the loss was still improving slightly, but the best checkpoint still came from epoch 49 rather than the final epoch.
+The first 50-epoch run showed that the loss was still improving near the end, so longer training could still help. The current public config uses a lighter 32-epoch setting with early stopping and batch size 128 so the project can be rerun more easily on a local machine.
 
 The linear evaluation accuracy of 59.08\% is acceptable for this small student implementation, especially because the project does not use a large model or a long hyperparameter search. The result also shows the limit of the current setting. The backbone is still weak, because 59.08\% linear evaluation accuracy is low for CIFAR-10. SimCLR is sensitive to augmentations, batch size, projection head design, and training length. A better representation could probably be obtained with more careful tuning, but that would make the project heavier and less focused on the TTT part.
 
@@ -253,13 +254,15 @@ The TTT results are mixed, which is important. ActMAD-style adaptation improved 
 
 However, TTT decreased the accuracy on \texttt{fog} and \texttt{brightness}. This shows that adaptation at test time is not automatically safe. If the adaptation loss is not well aligned with the classification objective, the model can adapt in the wrong direction. A corrupted batch may contain useful information, but it may also push the normalization parameters away from a better solution.
 
+This motivates safer TTT and tuning the number of adaptation steps. The next experiments compare \texttt{steps\_per\_batch = 3, 5, 10} and severity 3 versus severity 5.
+
 Another limitation is the dataset used in this run. The full CIFAR-10-C archive was not available locally, so the experiment used the fallback synthetic corruptions generated from the CIFAR-10 test set. This is enough to verify that the code runs and that the baseline/TTT comparison works, but a stronger experimental study should use the official CIFAR-10-C files and evaluate all corruptions and several severity levels.
 
 For this reason, the results should be read as a first validation of the implementation, not as a definitive benchmark. The positive average gain is encouraging, but the negative cases are just as important because they show where the method is unstable.
 % =================================================
 \section{Final Remarks and Future Work}
 
-The project keeps its original structure: SimCLR, ResNet18, CIFAR-10, CIFAR-10-C style corruptions, and ActMAD Test-Time Training. The main changes made the experiment cleaner. Pretraining no longer depends on an arbitrary fixed choice of 100 epochs. It now uses a maximum number of epochs, early stopping logic, a best checkpoint, a last checkpoint, and a CSV training log.
+The project keeps its original structure: SimCLR, ResNet18, CIFAR-10, CIFAR-10-C style corruptions, and ActMAD Test-Time Training. Pretraining uses an early-stopping ceiling, a best checkpoint, a last checkpoint, and a CSV training log.
 
 The final run gave a linear evaluation accuracy of 59.08\%. On the four evaluated corruptions, the baseline reached 36.18\% mean accuracy, while TTT reached 40.80\%. The average gain was therefore +4.63 percentage points. This improvement came mainly from the two noise corruptions, while fog and brightness became slightly worse after adaptation.
 
@@ -290,9 +293,9 @@ D. Hendrycks and T. Dietterich.
 ICLR, 2019.
 
 \bibitem{actmad}
-Authors of the reference paper used in the project.
+M. J. Mirza, P. Jané Soneira, W. Lin, M. Kozinski, H. Possegger and H. Bischof.
 \textit{ActMAD: Activation Matching to Align Distributions for Test-Time Training}.
-Paper provided in the project folder.
+arXiv, 2023.
 
 \end{thebibliography}
 

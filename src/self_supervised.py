@@ -16,14 +16,14 @@ from torchvision import models
 class SSLConfig:
     """Configuration for SimCLR pretraining."""
     method: str = "simclr"
-    max_epochs: int = 50
+    max_epochs: int = 32
     batch_size: int = 128
     lr: float = 3e-4
     temperature: float = 0.5
     projection_dim: int = 128
     backbone: str = "resnet18"
-    patience: int = 7
-    min_delta: float = 1e-3
+    patience: int = 12
+    min_delta: float = 5e-4
 
 
 class ProjectionHead(nn.Module):
@@ -197,16 +197,24 @@ class SelfSupervisedTrainer:
 
         return train_loader
 
-    def linear_eval(self, train_loader, val_loader, num_classes: int = 10):
+    def linear_eval(
+        self,
+        train_loader,
+        val_loader,
+        num_classes: int = 10,
+        epochs: int = 32,
+        lr: float = 1e-3,
+        weight_decay: float = 1e-4,
+    ):
         """Train a linear classifier on frozen backbone features."""
         self.model.eval()
         for p in self.model.backbone.parameters():
             p.requires_grad = False
 
         clf = nn.Linear(self.model.feat_dim, num_classes).to(self.device)
-        opt = torch.optim.Adam(clf.parameters(), lr=1e-3)
+        opt = torch.optim.Adam(clf.parameters(), lr=lr, weight_decay=weight_decay)
 
-        for _ in range(30):
+        for _ in range(epochs):
             clf.train()
             for x, y in train_loader:
                 x, y = x.to(self.device), y.to(self.device)

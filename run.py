@@ -97,14 +97,14 @@ def main() -> None:
         training_cfg = cfg["training"]
         ssl_cfg = SSLConfig(
             method=training_cfg.get("method", "simclr"),
-            max_epochs=training_cfg.get("max_epochs", training_cfg.get("epochs", 50)),
+            max_epochs=training_cfg.get("max_epochs", training_cfg.get("epochs", 32)),
             batch_size=training_cfg.get("batch_size", 128),
             lr=training_cfg.get("lr", 3e-4),
             temperature=training_cfg.get("temperature", 0.5),
             projection_dim=cfg.get("model", {}).get("embedding_dim", 128),
             backbone=cfg.get("model", {}).get("backbone", "resnet18"),
-            patience=training_cfg.get("patience", 7),
-            min_delta=training_cfg.get("min_delta", 1e-3),
+            patience=training_cfg.get("patience", 12),
+            min_delta=training_cfg.get("min_delta", 5e-4),
         )
 
         trainer = SelfSupervisedTrainer(ssl_cfg, device=device)
@@ -136,7 +136,15 @@ def main() -> None:
             last_backbone_path=last_backbone_path,
         )
 
-        clf, _ = trainer.linear_eval(train_loader, val_loader)
+        linear_cfg = cfg.get("linear_eval", {})
+        clf, _ = trainer.linear_eval(
+            train_loader,
+            val_loader,
+            num_classes=cfg.get("model", {}).get("num_classes", 10),
+            epochs=linear_cfg.get("epochs", 32),
+            lr=linear_cfg.get("lr", 1e-3),
+            weight_decay=linear_cfg.get("weight_decay", 1e-4),
+        )
         clf_path = project_path("results/self_supervised/classifier.pt")
         clf_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(clf.state_dict(), clf_path)
@@ -194,6 +202,9 @@ def main() -> None:
         severity = dataset_cfg["severity"]
         data_root = project_path(dataset_cfg["root"])
         allow_synthetic_fallback = dataset_cfg.get("allow_synthetic_fallback", True)
+        print_fallback_warning_once = dataset_cfg.get("print_fallback_warning_once", True)
+        use_safe_ttt = cfg["adaptation"].get("use_safe_ttt", False)
+        max_allowed_confidence_drop = cfg["adaptation"].get("max_allowed_confidence_drop", 0.05)
         missing_cifar10c = missing_cifar10c_files(data_root, corruptions)
         if missing_cifar10c:
             if not allow_synthetic_fallback:
@@ -201,18 +212,20 @@ def main() -> None:
                 raise FileNotFoundError(
                     "CIFAR-10-C files are missing.\n"
                     f"Missing:\n{missing_text}\n"
-                    "Place the CIFAR-10-C .npy files under data/raw/cifar10c/CIFAR-10-C "
+                    "Place the CIFAR-10-C .npy files under data/raw/CIFAR-10-C "
                     "or set allow_synthetic_fallback: true."
                 )
-            print(
-                "[DATA] CIFAR-10-C files not found. "
-                "Using locally generated CIFAR-10 test corruptions for this evaluation."
-            )
+            if print_fallback_warning_once:
+                print(
+                    "[DATA] CIFAR-10-C files not found. "
+                    "Using locally generated CIFAR-10 test corruptions for this evaluation."
+                )
         rows = []
 
         print(f"\n{'Corruption':<22} {'Baseline':>10} {'TTT':>10} {'Gain':>10}")
         print("-" * 58)
         for corruption in corruptions:
+            corruption_fallback_used = bool(missing_cifar10c_files(data_root, [corruption]))
             loader = build_cifar10c_loader(
                 root=str(data_root),
                 corruption=corruption,
@@ -222,7 +235,14 @@ def main() -> None:
                 allow_synthetic_fallback=allow_synthetic_fallback,
             )
             res_base = evaluate_ttt(adapter, loader, device, use_ttt=False)
-            res_ttt = evaluate_ttt(adapter, loader, device, use_ttt=True)
+            res_ttt = evaluate_ttt(
+                adapter,
+                loader,
+                device,
+                use_ttt=True,
+                use_safe_ttt=use_safe_ttt,
+                max_allowed_confidence_drop=max_allowed_confidence_drop,
+            )
             gain = res_ttt["accuracy"] - res_base["accuracy"]
             rows.append(
                 {
@@ -230,10 +250,18 @@ def main() -> None:
                     "severity": severity,
                     "baseline_accuracy": res_base["accuracy"],
                     "ttt_accuracy": res_ttt["accuracy"],
+                    "gain": gain,
                     "improvement": gain,
                     "baseline_correct": res_base["correct"],
                     "ttt_correct": res_ttt["correct"],
                     "total": res_base["total"],
+                    "batch_size": dataset_cfg["batch_size"],
+                    "steps_per_batch": ttt_cfg.steps_per_batch,
+                    "adaptation_lr": ttt_cfg.lr,
+                    "use_safe_ttt": use_safe_ttt,
+                    "safe_ttt_rejected_batches": res_ttt["safe_ttt_rejected_batches"],
+                    "safe_ttt_total_batches": res_ttt["safe_ttt_total_batches"],
+                    "synthetic_fallback_used": corruption_fallback_used,
                 }
             )
             sign = "+" if gain >= 0 else ""

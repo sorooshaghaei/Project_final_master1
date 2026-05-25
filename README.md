@@ -1,12 +1,10 @@
-# TER - Self-Supervised Test-Time Training for Image Classification
+# Self-Supervised Test-Time Training for Image Classification
 
-M1 TER project on test-time adaptation for image classification.
+Master 1 TER project on test-time adaptation for image classification under distribution shift.
 
-The project keeps the original structure: SimCLR, ResNet18, CIFAR-10, CIFAR-10-C, and ActMAD adaptation. The main changes are in the training loop, reproducibility, checkpoints, and logs.
+The project uses SimCLR pretraining on CIFAR-10, a frozen ResNet18 backbone with linear evaluation, and ActMAD-style Test-Time Training on CIFAR-10-C corruptions or local synthetic fallback corruptions.
 
-## Installation
-
-Create a Python environment and install the main dependencies:
+## Setup
 
 ```bash
 python -m venv .venv
@@ -14,56 +12,23 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-If `torch` or `torchvision` do not install correctly on your machine, install them with the command for your system from the official PyTorch website, then run:
+If PyTorch does not install correctly for the machine, install `torch` and `torchvision` from the official PyTorch instructions, then install the remaining dependencies:
 
 ```bash
 pip install numpy pyyaml
 ```
 
-## Self-Supervised Training
+## Data
 
-```bash
-python run.py --task self_supervised --config configs/self_supervised.yaml
-```
+CIFAR-10 is downloaded automatically when `dataset.download: true` is set in `configs/self_supervised.yaml`.
 
-Equivalent alias:
-
-```bash
-python run.py --task ssl --config configs/self_supervised.yaml
-```
-
-This step creates:
+The official CIFAR-10-C files are optional for a light TER run. For a full CIFAR-10-C evaluation, place the `.npy` files here:
 
 ```text
-results/self_supervised/best_backbone.pt
-results/self_supervised/last_backbone.pt
-results/self_supervised/simclr_backbone.pt
-results/self_supervised/classifier.pt
-results/self_supervised/source_stats.pt
-results/self_supervised/training_log.csv
+data/raw/CIFAR-10-C/
 ```
 
-The configuration no longer uses a fixed 100 epochs. It uses:
-
-```yaml
-max_epochs: 50
-patience: 7
-min_delta: 0.001
-```
-
-The model stops earlier if the SimCLR loss does not improve enough.
-
-## Test-Time Training Evaluation
-
-Before this step, self-supervised training must already have been run.
-
-CIFAR-10-C should be placed here:
-
-```text
-data/raw/cifar10c/CIFAR-10-C/
-```
-
-with the `.npy` files, for example:
+Example files:
 
 ```text
 gaussian_noise.npy
@@ -71,46 +36,88 @@ shot_noise.npy
 labels.npy
 ```
 
-CIFAR-10-C is optional for a quick TER test. If these files are missing and `allow_synthetic_fallback: true` is set in the config, the code uses lightweight synthetic corruptions generated from the CIFAR-10 test batch. This fallback is for demonstration and TER testing, not a replacement for a full CIFAR-10-C evaluation.
+If CIFAR-10-C is missing and `allow_synthetic_fallback: true` is enabled, the project generates lightweight corruptions from the CIFAR-10 test batch. This fallback is useful for checking the pipeline, but it is not a replacement for the official CIFAR-10-C benchmark.
 
-Run the evaluation:
+## Train SSL and Linear Classifier
+
+```bash
+python run.py --task self_supervised --config configs/self_supervised.yaml
+```
+
+Alias:
+
+```bash
+python run.py --task ssl --config configs/self_supervised.yaml
+```
+
+This step trains the SimCLR backbone, saves the best and last checkpoints, trains the linear classifier on frozen features, and computes source activation statistics for TTT.
+
+## Run TTT Evaluation
 
 ```bash
 python run.py --task test_time_training --config configs/test_time_training.yaml
 ```
 
-Equivalent alias:
+Alias:
 
 ```bash
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
 
-The results are saved in:
+The default TTT config uses severity 5, which is a hard corruption setting.
 
-```text
-results/test_time_training/results.csv
+To run the same evaluation at moderate severity:
+
+```bash
+python run.py --task test_time_training --config configs/test_time_training_severity3.yaml
 ```
 
-## Evaluate All CIFAR-10-C Corruptions
+Severity 3 is moderate corruption. Severity 5 is hard corruption.
+
+## Run TTT Steps Sweep
+
+```bash
+python scripts/sweep_ttt_steps.py
+```
+
+The sweep compares `steps_per_batch = 3, 5, 10` using the same backbone, classifier, corruptions, severity, batch size, and adaptation learning rate.
+
+## Extra Corruption Evaluation
 
 ```bash
 python scripts/eval_corruption.py
 ```
 
-This script runs through the 15 CIFAR-10-C corruptions at severity 5 and also writes:
+This script evaluates the full list of CIFAR-10-C corruption names with the same local fallback behavior.
+
+## Outputs
 
 ```text
+results/self_supervised/training_log.csv
+results/self_supervised/best_backbone.pt
+results/self_supervised/last_backbone.pt
+results/self_supervised/simclr_backbone.pt
+results/self_supervised/classifier.pt
+results/self_supervised/source_stats.pt
 results/test_time_training/results.csv
+results/test_time_training/ttt_steps_sweep.csv
 ```
+
+The `results/` folder is ignored by Git because it contains generated checkpoints, logs, and evaluation outputs.
 
 ## Report
 
-The LaTeX report is in:
+The report source is in:
 
 ```text
 report/report.tex
 report/references.bib
+```
+
+The compiled report is:
+
+```text
 report/report.pdf
 ```
 
-The numerical results are not invented in the report. The experimental table should be filled after the commands are actually run.
+The report only states measured results from the project runs. New experiments should be added after rerunning the corresponding commands.

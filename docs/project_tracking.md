@@ -1,29 +1,27 @@
-# Project Tracking (Links + Progress)
-This is the single page to track presentations, progress PPTs, and weekly decisions.
+# Project Notes
 
-## Presentation Links
-| Date | Milestone | Deck Title | Link | Notes |
-|---|---|---|---|---|
-| YYYY-MM-DD | Kickoff |  |  |  |
-| YYYY-MM-DD | Midterm |  |  |  |
-| YYYY-MM-DD | Final |  |  |  |
+This file records the main project artifacts and commands used for the final TER repository.
 
-## Project Progress PowerPoints
-| Week | Date | Topic | PPT Link | Status |
-|---|---|---|---|---|
-| W01 | YYYY-MM-DD | Problem framing + datasets |  | Draft |
-| W02 | YYYY-MM-DD | TTT baseline results |  |  |
-| W03 | YYYY-MM-DD | SSL baseline + comparison |  |  |
-| W04 | YYYY-MM-DD |  |  |  |
+## Main Artifacts
 
-## Weekly Decisions
-| Week | Decision | Why | Owner | Next Action |
-|---|---|---|---|---|
-| W01 |  |  |  |  |
-| W02 |  |  |  |  |
-| W03 |  |  |  |  |
+| Artifact | Path | Role |
+|---|---|---|
+| Main entry point | `run.py` | Runs SSL training and TTT evaluation |
+| SSL config | `configs/self_supervised.yaml` | SimCLR, linear evaluation, checkpoints, and source statistics |
+| TTT config | `configs/test_time_training.yaml` | Severity 5 TTT evaluation |
+| Severity 3 config | `configs/test_time_training_severity3.yaml` | Moderate corruption TTT evaluation |
+| Report source | `report/report.tex` | TER report |
+| Report PDF | `report/report.pdf` | Compiled report |
 
-## Meeting Notes / Recordings
-| Date | Type | Link | Key Action Items |
-|---|---|---|---|
-| YYYY-MM-DD | Notes / Recording |  |  |
+## Reproducible Commands
+
+```bash
+python run.py --task self_supervised --config configs/self_supervised.yaml
+python run.py --task test_time_training --config configs/test_time_training.yaml
+python run.py --task test_time_training --config configs/test_time_training_severity3.yaml
+python scripts/sweep_ttt_steps.py
+```
+
+## Data Note
+
+CIFAR-10-C is optional for a light TER run. If the official files are missing and synthetic fallback is enabled, the code uses locally generated CIFAR-10 test corruptions. This checks the pipeline but does not replace a full CIFAR-10-C benchmark.
