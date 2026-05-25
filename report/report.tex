@@ -107,7 +107,6 @@
 \newcommand{\ProjectTitle}{Self-Supervised Test-Time Training for Image Classification}
 \newcommand{\ReportDate}{MAY 2026}
 \newcommand{\InstitutionName}{PARIS CITE UNIVERSITY}
-\newcommand{\missing}{\textit{Not provided in the available results.}}
 \newcommand{\pp}{percentage points}
 \graphicspath{{figures/}}
 
@@ -177,7 +176,7 @@ The project does not try to design a new backbone architecture. The backbone is 
 
 The adaptation strategy implemented in the project is ActMAD-style activation matching \citep{mirza2023actmad}. The model first records activation statistics on clean source data. At test time, it receives a corrupted batch and updates a limited subset of parameters so that the target activations become closer to the source activations. The current implementation adapts normalization parameters and keeps the rest of the model frozen. The classification head is then applied after this short adaptation.
 
-The final run gives a useful result on the configured corrupted evaluation. SimCLR training completed for 100 epochs, and the linear evaluation accuracy reached 67.05\%. The test-time evaluation improved from 48.34\% without adaptation to 55.78\% after ActMAD TTT. The gain is 7.44 percentage points. This is the confirmed result for the final evaluated setting, not a full benchmark over all CIFAR-10-C corruptions.
+The final run gives a useful result on the selected corrupted evaluation. SimCLR training completed for 100 epochs, and the linear evaluation accuracy reached 67.05\%. The test-time evaluation improved from 48.34\% without adaptation to 55.78\% after ActMAD TTT. The gain is 7.44 percentage points.
 
 % =================================================
 \section{Scientific Background and Related Work}
@@ -193,7 +192,7 @@ from images to class labels. For CIFAR-10, \(K=10\). The usual training objectiv
 
 The problem changes when the test distribution is shifted. A corrupted image may still contain the same semantic object, but the low-level statistics can be different. Noise modifies pixel values. Blur removes high-frequency details. Compression creates blocks and artifacts. Fog and brightness changes affect contrast and color distributions. Since convolutional neural networks learn a mixture of low-level and high-level features, these changes can propagate through the network and modify the internal activations.
 
-CIFAR-10-C was introduced as part of the common corruptions benchmark proposed by Hendrycks and Dietterich \citep{hendrycks2019robustness}. The benchmark is useful because it avoids vague robustness claims. A method can be tested on fixed corruptions and severity levels. If the full benchmark is used, accuracy or error can be reported per corruption and then averaged. In this project, the final run reports the configured corrupted evaluation from \texttt{configs/test\_time\_training.yaml}, not the complete 15-corruption CIFAR-10-C benchmark.
+CIFAR-10-C was introduced as part of the common corruptions benchmark proposed by Hendrycks and Dietterich \citep{hendrycks2019robustness}. The benchmark is useful because it avoids vague robustness claims. A method can be tested on fixed corruptions and severity levels. If the full benchmark is used, accuracy or error can be reported per corruption and then averaged.
 
 \subsection{Self-supervised representation learning}
 
@@ -265,7 +264,7 @@ The evaluation compares top-1 accuracy before and after adaptation. The improvem
 \]
 A positive value means the adaptation improved accuracy. A negative value means the adaptation damaged accuracy. This sign is important because test-time adaptation should not be described as successful if it improves one setting and fails on another.
 
-The report separates three cases. The first is clean CIFAR-10 source training and linear evaluation. The second is the configured test-time evaluation on corrupted CIFAR-10 data. The third is the larger all-corruption CIFAR-10-C evaluation. The final terminal output confirms the source-domain training result and the configured TTT result. It does not provide a table over all 15 CIFAR-10-C corruptions.
+The report separates three cases. The first is clean CIFAR-10 source training and linear evaluation. The second is the selected test-time evaluation on corrupted CIFAR-10 data. The third is the larger all-corruption CIFAR-10-C evaluation.
 
 % =================================================
 \section{Methodology}
@@ -342,7 +341,7 @@ The implementation files used by the report are:
 
 \subsection{Configuration files}
 
-The public self-supervised configuration is \texttt{configs/self\_supervised.yaml}. It uses CIFAR-10 at \texttt{data/raw}, enables download, and sets the training method to SimCLR. The values used in the report are the values from the available repository description and terminal output.
+The self-supervised configuration is \texttt{configs/self\_supervised.yaml}. It uses CIFAR-10 at \texttt{data/raw}, enables download, and sets the training method to SimCLR. The values used in the report come from the config file and the final terminal output.
 
 \begin{table}[H]
 \centering
@@ -368,7 +367,7 @@ Source statistics output & \texttt{results/self\_supervised/source\_stats.pt}\\
 \end{tabular}
 \end{table}
 
-The public TTT configuration is \texttt{configs/test\_time\_training.yaml}. It loads the saved SimCLR backbone, classifier, and source statistics. The available repository report indicates \texttt{shot\_noise} at severity 5, batch size 16, ten adaptation steps per batch, and learning rate \(10^{-4}\).
+The TTT configuration is \texttt{configs/test\_time\_training.yaml}. It loads the saved SimCLR backbone, classifier, and source statistics. It uses \texttt{shot\_noise} at severity 5, batch size 16, ten adaptation steps per batch, and learning rate \(10^{-4}\).
 
 \begin{table}[H]
 \centering
@@ -381,7 +380,8 @@ Task & \texttt{test\_time\_training}\\
 Alias & \texttt{ttt}\\
 Configuration file & \texttt{configs/test\_time\_training.yaml}\\
 Dataset & CIFAR-10-C style evaluation\\
-Expected official root & \texttt{data/raw/cifar10c/CIFAR-10-C/}\\
+Dataset root in config & \texttt{data/raw}\\
+Resolved CIFAR-10-C directory & \texttt{data/raw/CIFAR-10-C/}\\
 Corruption in config & \texttt{shot\_noise}\\
 Severity & 5\\
 Batch size & 16\\
@@ -401,31 +401,34 @@ results/self_supervised/classifier.pt
 results/self_supervised/simclr_backbone.pt
 results/self_supervised/source_stats.pt
 \end{lstlisting}
-These files are produced by the self-supervised stage. The TTT stage loads them. A missing \texttt{.pt} file inside \texttt{results/test\_time\_training/} is not automatically an error, because the available TTT stage is an evaluation/adaptation stage rather than a checkpoint-producing training stage.
+These files are produced by the self-supervised stage. The TTT stage loads them. A missing \texttt{.pt} file inside \texttt{results/test\_time\_training/} is not automatically an error, because the TTT stage evaluates and adapts the model rather than saving a new checkpoint.
 
-The numerical TTT output is expected in:
+The local CSV output path is:
 \begin{lstlisting}
 results/test_time_training/results.csv
 \end{lstlisting}
-when the local code writes the CSV. No full \texttt{results.csv} was provided with the final results. The final baseline and ActMAD TTT accuracies reported in this report therefore come from the terminal output.
 
 \subsection{CIFAR-10-C data path}
 
-The dataset loader expects official CIFAR-10-C files under:
+The TTT configuration sets the dataset root to:
 \begin{lstlisting}
-data/raw/cifar10c/CIFAR-10-C/
+data/raw
+\end{lstlisting}
+The loader then resolves the official CIFAR-10-C files under:
+\begin{lstlisting}
+data/raw/CIFAR-10-C/
 \end{lstlisting}
 For the corruption \texttt{shot\_noise}, the expected file is:
 \begin{lstlisting}
-data/raw/cifar10c/CIFAR-10-C/shot_noise.npy
+data/raw/CIFAR-10-C/shot_noise.npy
 \end{lstlisting}
 The labels are expected in:
 \begin{lstlisting}
-data/raw/cifar10c/CIFAR-10-C/labels.npy
+data/raw/CIFAR-10-C/labels.npy
 \end{lstlisting}
 Each official corruption file contains 50,000 images, with 10,000 images per severity level. The loader selects the slice corresponding to the requested severity. For severity 5, it selects the last 10,000 images.
 
-The final successful TTT command used the same \texttt{configs/test\_time\_training.yaml} path after the dataset issue had been corrected. The reported numbers are therefore treated as the final configured test-time evaluation. They are still not a complete CIFAR-10-C benchmark because the provided results do not include the full 15-corruption table.
+The final successful TTT command used the same \texttt{configs/test\_time\_training.yaml} path after the dataset issue had been corrected.
 
 % =================================================
 \section{Experimental Protocol}
@@ -460,7 +463,7 @@ The alias is:
 python run.py --task ttt --config configs/test_time_training.yaml
 \end{lstlisting}
 
-The final TTT command completed after the dataset path issue had been corrected. It loaded the saved backbone and classifier, evaluated the baseline model, then applied ActMAD TTT. The baseline accuracy was 48.34\%, the ActMAD TTT accuracy was 55.78\%, and the improvement was 7.44 percentage points. No per-corruption CSV was provided with that output.
+The final TTT command completed after the dataset path issue had been corrected. It loaded the saved backbone and classifier, evaluated the baseline model, then applied ActMAD TTT. The baseline accuracy was 48.34\%, the ActMAD TTT accuracy was 55.78\%, and the improvement was 7.44 percentage points.
 
 \subsection{All-corruption evaluation}
 
@@ -475,19 +478,19 @@ glass_blur, motion_blur, zoom_blur, snow, frost, fog,
 brightness, contrast, elastic_transform, pixelate,
 jpeg_compression
 \end{lstlisting}
-The final results provided here do not include the output of this full script. Mean accuracy over all corruptions, per-corruption improvements, and severity-level comparisons are therefore not reported.
+This script is the entry point for a larger run over the listed corruptions.
 
 % =================================================
 \section{Experimental Results}
 % =================================================
 
-\subsection{Final available numerical results}
+\subsection{Final numerical results}
 
-The final available numbers are summarized in Table~\ref{tab:final-summary}. They come from the terminal output of the completed SSL run and the available TTT evaluation.
+The final numbers are summarized in Table~\ref{tab:final-summary}. They come from the terminal output of the completed SSL run and the TTT evaluation.
 
 \begin{table}[H]
 \centering
-\caption{Final available numerical results.}
+\caption{Final numerical results.}
 \label{tab:final-summary}
 \begin{tabular}{ll}
 \toprule
@@ -506,18 +509,18 @@ Improvement & +7.44 percentage points\\
 
 \begin{table}[H]
 \centering
-\caption{Configured TTT evaluation.}
+\caption{Selected TTT evaluation.}
 \label{tab:available-ttt}
 \begin{tabular}{lccc}
 \toprule
 Evaluation setting & Baseline accuracy & ActMAD TTT accuracy & Improvement\\
 \midrule
-Configured TTT evaluation & 48.34\% & 55.78\% & +7.44 pp\\
+Selected TTT evaluation & 48.34\% & 55.78\% & +7.44 pp\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The table should not be read as a full CIFAR-10-C benchmark over all corruption types. It is the final configured TTT evaluation: the trained backbone, classifier, and source statistics are loaded, then the baseline and adapted predictions are compared on the evaluated corrupted setting.
+These results cover the selected setting from \texttt{configs/test\_time\_training.yaml}. They are not a full CIFAR-10-C benchmark: the final files do not include a CSV over all 15 corruptions or a mean score over all corruptions.
 
 \subsection{Training loss evolution}
 
@@ -544,66 +547,29 @@ Loss & 5.6214 & 4.9697 & 4.8217 & 4.7216 & 4.6768 & 4.6637 & 4.6586\\
 \end{tabular}
 \end{table}
 
-\subsection{CIFAR-10-C evaluation coverage}
-
-The final TTT run completed for the configured evaluation setting and produced a baseline/adapted comparison. The provided results do not include a full all-corruption CSV. Table~\ref{tab:cifar10c-status} separates the confirmed final result from the benchmark elements that were not provided.
-
-\begin{table}[H]
-\centering
-\caption{Status of the available evaluation evidence.}
-\label{tab:cifar10c-status}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}X}
-\toprule
-Item & Status\\
-\midrule
-Completed 100-epoch SSL run & Confirmed by terminal output.\\
-Final linear evaluation accuracy & Confirmed: 67.05\%.\\
-Available baseline and TTT accuracies & Confirmed by terminal output: 48.34\% and 55.78\%.\\
-Configured TTT run & Confirmed by terminal output after the dataset path issue was fixed.\\
-Full TTT results CSV & Not provided in the available results.\\
-Per-corruption table over 15 CIFAR-10-C corruptions & Not provided in the available results.\\
-Mean accuracy over all CIFAR-10-C corruptions & Not provided in the available results.\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
 % =================================================
 \section{Analysis and Discussion}
 % =================================================
 
-The final configured evaluation gives 48.34\% accuracy without adaptation and 55.78\% after ActMAD TTT. The gain is 7.44 percentage points. This result supports the idea that activation matching can help under the evaluated shift, but it is not enough to claim full robustness on CIFAR-10-C.
+The final selected evaluation gives 48.34\% accuracy without adaptation and 55.78\% after ActMAD TTT. The gain is 7.44 percentage points. This result supports the idea that activation matching can help under the evaluated shift.
 
-The baseline accuracy under the available shifted or corrupted evaluation is lower than the 67.05\% linear evaluation accuracy. This is consistent with the distribution-shift problem. The classifier works better on the clean evaluation setting than on the shifted test setting. The drop does not come from a new class set, because the CIFAR-10 classes remain the same. It comes from the change in image statistics seen by the backbone and classifier.
+The baseline accuracy under the selected shifted evaluation is lower than the 67.05\% linear evaluation accuracy. This is consistent with the distribution-shift problem. The classifier works better on the clean evaluation setting than on the shifted test setting. The drop does not come from a new class set, because the CIFAR-10 classes remain the same. It comes from the change in image statistics seen by the backbone and classifier.
 
-The ActMAD result recovers part of the lost performance. Matching target activation statistics to source activation statistics can move the adapted model toward the distribution on which the classifier was trained. In this run, that movement improved accuracy rather than damaging it. The improvement is large enough to be meaningful for the available evaluation: +7.44 percentage points is not just a rounding effect.
+The ActMAD result recovers part of the lost performance. Matching target activation statistics to source activation statistics can move the adapted model toward the distribution on which the classifier was trained. In this run, that movement improved accuracy rather than damaging it. The improvement is large enough to be meaningful here: +7.44 percentage points is not just a rounding effect.
 
-The result should still be interpreted carefully. First, the representation quality is moderate. A 67.05\% linear evaluation accuracy shows that SimCLR learned useful features, but the encoder is not a very strong CIFAR-10 classifier. If the representation were stronger, the baseline and TTT results could change. If the representation were weaker, adaptation could become unstable or meaningless.
+Test-time adaptation is not automatically safe. The model adapts without labels. A lower activation matching loss does not always mean better classification. If the target batch is small, unbalanced, or too corrupted, the statistics can be misleading. The optimizer may make the activations look more source-like while losing useful class information. This is why future experiments should keep negative results visible and not only report successful cases.
 
-Second, the result is not per-corruption. CIFAR-10-C is useful because it separates corruptions. Noise, blur, weather effects, and digital artifacts do not necessarily affect the model in the same way. A single available evaluation cannot show whether ActMAD helps on noise but fails on fog, or helps on compression but fails on contrast. A complete robustness claim would need the full 15-corruption table.
-
-Third, the result covers one configured evaluation setting, not the full CIFAR-10-C benchmark. The final run supports the method on the evaluated setting, but it does not show behavior across all corruption families. The missing element is experimental coverage, not the validity of the final baseline/TTT comparison.
-
-Fourth, test-time adaptation is not automatically safe. The model adapts without labels. A lower activation matching loss does not guarantee better classification. If the target batch is small, unbalanced, or too severely corrupted, the statistics can be misleading. The optimizer may make the activations look more source-like while losing class-discriminative information. This is why future experiments should keep negative results visible and not only report successful cases.
-
-The main positive point is that the implemented pipeline is coherent. The SSL stage produces a usable backbone, the linear classifier gives a representation-quality check, source statistics are saved, and TTT loads the saved files and performs adaptation. The main weak point is experimental coverage. The available result is a useful final run for the TER report, but a stronger scientific conclusion would require a full per-corruption evaluation over all CIFAR-10-C corruptions.
+The implemented pipeline is coherent. The SSL stage produces a usable backbone, the linear classifier checks the learned features, source statistics are saved, and TTT loads the saved files and performs adaptation.
 
 % =================================================
 \section{Limitations}
 % =================================================
 
-The first limitation is evaluation coverage. The final TTT run gives a clear result for the configured corrupted evaluation, but the provided results do not include a full table over all 15 CIFAR-10-C corruptions.
+The main limitation is evaluation coverage. The final TTT result is for one selected setting. The final files do not include \texttt{results/test\_time\_training/results.csv}, a table over all 15 CIFAR-10-C corruptions, or a mean score over all corruptions. The terminal output is enough to report the baseline and ActMAD accuracies for the selected run, but a saved CSV would make the result easier to check and repeat.
 
-The second limitation is the absence of a full result CSV. No final \texttt{results/test\_time\_training/results.csv} was provided. The final TTT numbers in this report come from terminal output. This is acceptable for reporting the available run, but a CSV is better for reproducibility because it fixes the exact corruption, severity, batch size, adaptation steps, and learning rate for each row.
+The settings were not fully compared. The report uses ten ActMAD steps and learning rate \(10^{-4}\). It does not compare several step counts, batch sizes, learning rates, or sets of adapted parameters.
 
-The third limitation is the missing per-corruption table. CIFAR-10-C contains several corruption families. A single available TTT number cannot show whether the method is robust across noise, blur, weather, and digital corruptions. No comparison over all 15 CIFAR-10-C corruptions is available in the final results.
-
-The fourth limitation is representation quality. The final linear evaluation accuracy is 67.05\%. This is a useful result for a self-supervised Master 1 implementation, but it is not a strong final CIFAR-10 classifier. A stronger backbone might give a different baseline and a different adaptation behavior.
-
-The fifth limitation is hyperparameter search. The report uses the available ActMAD setting with ten adaptation steps and learning rate \(10^{-4}\). No systematic comparison of step counts, batch sizes, learning rates, or adaptation parameter subsets was provided. The reported improvement should therefore be read as a result for one available setting, not as an optimized TTT configuration.
-
-The sixth limitation is adaptation instability. ActMAD aligns activation statistics, not labels. A lower activation matching loss does not guarantee better classification. This is a known difficulty in test-time adaptation and should be considered when interpreting positive and negative results.
-
-The method should also be validated with the full all-corruption script. That would produce per-corruption results and mean accuracy values rather than a single configured TTT result.
+ActMAD aligns activation statistics, not labels. A lower activation matching loss does not always mean better classification. This should be checked when reading both positive and negative results.
 
 % =================================================
 \section{Reproducibility}
@@ -625,17 +591,16 @@ results/self_supervised/classifier.pt
 results/self_supervised/source_stats.pt
 \end{lstlisting}
 
-TTT numerical results are expected in:
+The local CSV output path is:
 \begin{lstlisting}
 results/test_time_training/results.csv
 \end{lstlisting}
-when the local code writes the CSV. If this file is missing, the terminal output remains the source for the available baseline and adapted accuracies. The final available terminal output reports 48.34\% baseline accuracy, 55.78\% ActMAD TTT accuracy, and +7.44 percentage points of improvement.
 
 For full CIFAR-10-C evaluation, the official \texttt{.npy} files and \texttt{labels.npy} must exist under:
 \begin{lstlisting}
-data/raw/cifar10c/CIFAR-10-C/
+data/raw/CIFAR-10-C/
 \end{lstlisting}
-The final single-setting TTT result is already reported above. A full benchmark would require running the all-corruption script and saving the resulting table.
+The all-corruption script can be used for a wider evaluation.
 
 The terminal warnings observed during the provided run are not central to the scientific method. The MPS warning says that \texttt{pin\_memory=True} is not supported on MPS, so pinned memory is not used. This can be cleaned by setting \texttt{pin\_memory=False} when the device is MPS. The NumPy deprecation warning comes from dataset loading and does not change the reported accuracy values, but a stable dependency combination is safer for repeated experiments.
 
@@ -645,11 +610,9 @@ The terminal warnings observed during the provided run are not central to the sc
 
 The project implements a complete pipeline for self-supervised test-time adaptation on image classification. SimCLR trains a ResNet18 backbone on CIFAR-10. A linear classifier evaluates the learned representation. Source activation statistics are computed on clean data. At test time, ActMAD-style adaptation updates normalization parameters on unlabeled corrupted batches before classification.
 
-The final results are positive but limited in coverage. The self-supervised run completed 100 epochs and reached 67.05\% linear evaluation accuracy. The configured TTT evaluation improved accuracy from 48.34\% to 55.78\%, a gain of 7.44 percentage points. This supports the usefulness of activation matching in the evaluated setting.
+The final results are positive for the selected setting. The self-supervised run completed 100 epochs and reached 67.05\% linear evaluation accuracy. The TTT evaluation improved accuracy from 48.34\% to 55.78\%, a gain of 7.44 percentage points. This supports the usefulness of activation matching in the evaluated setting.
 
-The result is not a complete robustness benchmark. No per-corruption CSV was provided. A stronger final experiment would evaluate all 15 CIFAR-10-C corruptions, report mean accuracy, and compare several adaptation settings.
-
-The next practical step is to run \texttt{scripts/eval\_corruption.py}, save the resulting CSV, and compare ActMAD across all listed corruptions and severity levels. It would also be useful to test several adaptation step counts, several batch sizes, and at least one other test-time adaptation method. Safer adaptation criteria should also be studied, because an unsupervised adaptation loss can improve activation matching while hurting classification.
+The next practical step is to run \texttt{scripts/eval\_corruption.py}, save the resulting CSV, and compare ActMAD across all listed corruptions and severity levels. It would also be useful to test several adaptation step counts, several batch sizes, and at least one other test-time adaptation method.
 
 % =================================================
 \section{References}

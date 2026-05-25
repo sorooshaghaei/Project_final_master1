@@ -1,4 +1,4 @@
-# base interface for TTT methods
+"""Test-time training utilities and ActMAD adaptation."""
 import torch 
 import torch.nn as nn
 import copy
@@ -110,7 +110,6 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
 
 
 class TTTAdapter:
-    # minimal TTT adapter skeleton
     """Classe d'adaptation pour Test-Time Training (TTT) qui encapsule un modèle pré-entraîné
         et fournit des méthodes pour l'adaptation en temps réel sur des batches de données cibles non étiquetées,
         en utilisant une perte d'adaptation auto-supervisée (ex: ActMAD)."""
@@ -121,8 +120,7 @@ class TTTAdapter:
         self._base_model = model # modèle original non modifié
 
     def adapt_on_batch(self, x: torch.Tensor) -> torch.Tensor:
-        # adapt model parameters using unlabeled target batch
-        # todo implement self-supervised adaptation objective
+        # adapt model parameters using the ActMAD objective on an unlabeled target batch
         model = copy.deepcopy(self._base_model)
         model.train()
 
@@ -161,8 +159,7 @@ class TTTAdapter:
         return logits
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
-        # run inference after adaptation
-        # todo replace with actual model forward pass
+        # run inference with the stored base model
         self._base_model.eval()
         with torch.no_grad():
             return self._base_model(x)

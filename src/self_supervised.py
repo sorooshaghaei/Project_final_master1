@@ -1,4 +1,4 @@
-# base interface for SSL methods
+"""Self-supervised learning models and training utilities."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,7 +86,6 @@ class SelfSupervisedTrainer:
 
     def pretrain(self, train_loader):
         # run self-supervised pretraining
-        # todo implement SSL pretraining loop
         self.model.train()
         for epoch in range(self.config.epochs):
             total_loss = 0.0
@@ -106,7 +105,6 @@ class SelfSupervisedTrainer:
         """Effectue une évaluation linéaire en entraînant un classifieur linéaire sur les features brutes extraites par le backbone,
         sans mise à jour du backbone."""
         # run linear evaluation on frozen features
-        # todo implement evaluation pipeline
         self.model.eval()
         for p in self.model.backbone.parameters():
             p.requires_grad = False
