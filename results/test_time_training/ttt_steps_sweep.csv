@@ -1,0 +1,4 @@
+steps_per_batch,corruption,severity,baseline_accuracy,ttt_accuracy,gain,safe_ttt_rejected_batches,safe_ttt_total_batches
+3,shot_noise,5,0.3302,0.536,0.20580000000000004,0,0
+5,shot_noise,5,0.3302,0.6034,0.27320000000000005,0,0
+10,shot_noise,5,0.3302,0.6909,0.36069999999999997,0,0

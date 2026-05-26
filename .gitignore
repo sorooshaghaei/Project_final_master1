@@ -90,9 +90,7 @@ data/processed/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-#################################
-# Report (keep slides + notes, ignore temp)
-#################################
+
 # macOS Office temp files
 report/~$*
 # LaTeX build files
@@ -107,9 +105,14 @@ report/**/*.fdb_latexmk
 report/**/*.fls
 
 #################################
-# Optional: common outputs
+#common outputs
 #################################
 outputs/
-results/
+results/*
+!results/test_time_training/
+results/test_time_training/*
+!results/test_time_training/results.csv
+!results/test_time_training/ttt_steps_sweep.csv
+!results/test_time_training/corruption_eval.csv
 models/
 checkpoints/

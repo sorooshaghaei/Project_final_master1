@@ -1,0 +1,2 @@
+corruption,severity,batch_size,method,steps_per_batch,lr,baseline_accuracy_percent,actmad_accuracy_percent,improvement_percentage_points,baseline_correct,baseline_total,actmad_correct,actmad_total
+shot_noise,5,16,actmad,10,0.0001,33.02,69.12,36.1,3302,10000,6912,10000

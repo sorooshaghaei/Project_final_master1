@@ -1,3 +1,4 @@
+import csv
 import torch
 import torch.nn as nn
 from pathlib import Path
@@ -48,6 +49,10 @@ if __name__ == "__main__":
         "elastic_transform", "pixelate", "jpeg_compression"
     ]
     SEVERITY = 5
+    BATCH_SIZE = 16
+    output_path = project_path("results/test_time_training/corruption_eval.csv")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
 
     print(f"\n{'Corruption':<22} {'Baseline':>10} {'TTT':>10} {'Improvement':>10}")
     print("-" * 56)
@@ -58,15 +63,52 @@ if __name__ == "__main__":
             root=str(project_path("data/raw/cifar10c")),
             corruption=corruption,
             severity=SEVERITY,
-            batch_size=16,
+            batch_size=BATCH_SIZE,
             num_workers=0,
         )
         base = evaluate_ttt(adapter, loader, device, use_ttt=False)
         ttt  = evaluate_ttt(adapter, loader, device, use_ttt=True)
         improvement = (ttt["accuracy"] - base["accuracy"]) * 100
         gains.append(improvement)
+        rows.append(
+            {
+                "corruption": corruption,
+                "severity": SEVERITY,
+                "batch_size": BATCH_SIZE,
+                "method": "actmad",
+                "steps_per_batch": ttt_cfg.steps_per_batch,
+                "lr": ttt_cfg.lr,
+                "baseline_accuracy_percent": round(base["accuracy"] * 100, 2),
+                "actmad_accuracy_percent": round(ttt["accuracy"] * 100, 2),
+                "improvement_percentage_points": round(improvement, 2),
+                "baseline_correct": base["correct"],
+                "baseline_total": base["total"],
+                "actmad_correct": ttt["correct"],
+                "actmad_total": ttt["total"],
+            }
+        )
         sign = "+" if improvement >= 0 else ""
         print(f"{corruption:<22} {base['accuracy']*100:>9.2f}% {ttt['accuracy']*100:>9.2f}% {sign}{improvement:>9.2f}%")
+
+    fieldnames = [
+        "corruption",
+        "severity",
+        "batch_size",
+        "method",
+        "steps_per_batch",
+        "lr",
+        "baseline_accuracy_percent",
+        "actmad_accuracy_percent",
+        "improvement_percentage_points",
+        "baseline_correct",
+        "baseline_total",
+        "actmad_correct",
+        "actmad_total",
+    ]
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
     print("-" * 56)
     avg = sum(gains) / len(gains)
@@ -74,3 +116,4 @@ if __name__ == "__main__":
     print(f"{'Average':<22} {'':>10} {'':>10} {avg_sign}{avg:>8.2f}%")
     print(f"\nTTT helps on {sum(1 for g in gains if g > 0)}/15 corruptions")
     print(f"TTT hurts on {sum(1 for g in gains if g < 0)}/15 corruptions")
+    print(f"Results saved to {output_path}")

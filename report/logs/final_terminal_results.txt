@@ -23,3 +23,25 @@ Configured TTT run:
 - baseline accuracy: 33.02% (3302/10000)
 - ActMAD TTT accuracy: 69.12% (6912/10000)
 - improvement: +36.10 percentage points
+
+All-corruption run:
+- command: python scripts/eval_corruption.py
+- result source: results/test_time_training/corruption_eval.csv
+- severity: 5
+- corruptions evaluated: 15
+- mean baseline accuracy: 54.82%
+- mean ActMAD TTT accuracy: 70.22%
+- mean improvement: +15.40 percentage points
+- TTT helps on 14/15 corruptions
+- TTT hurts on 1/15 corruptions
+- largest gains: impulse_noise +41.59 pp, gaussian_noise +40.66 pp, shot_noise +36.07 pp, pixelate +28.61 pp
+- negative case: brightness -1.55 pp
+
+Step sweep:
+- command: python scripts/sweep_ttt_steps.py
+- result source: results/test_time_training/ttt_steps_sweep.csv
+- corruption: shot_noise
+- severity: 5
+- steps 3: 53.60% TTT accuracy, +20.58 pp
+- steps 5: 60.34% TTT accuracy, +27.32 pp
+- steps 10: 69.09% TTT accuracy, +36.07 pp

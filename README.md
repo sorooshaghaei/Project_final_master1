@@ -71,6 +71,35 @@ python run.py --task ssl --config configs/self_supervised.yaml
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
 
+## Evaluation
+
+Run the all-corruption CIFAR-10-C evaluation from the `scripts` directory:
+
+```bash
+cd /Users/sorooshaghaei/Desktop/Paris_cite_projects/Project_final_master1/scripts
+python eval_corruption.py
+```
+
+This prints the baseline and ActMAD TTT accuracy for all 15 CIFAR-10-C corruptions at severity 5 and saves:
+
+```text
+results/test_time_training/corruption_eval.csv
+```
+
+Run the adaptation-step sweep with:
+
+```bash
+python sweep_ttt_steps.py
+```
+
+This evaluates `steps_per_batch` values 3, 5, and 10 on the configured `shot_noise` setting and saves:
+
+```text
+results/test_time_training/ttt_steps_sweep.csv
+```
+
+The final all-corruption run improved accuracy on 14/15 corruptions, with an average gain of +15.40 percentage points. The only negative case was `brightness` (-1.55 percentage points).
+
 ## Data Paths
 
 CIFAR-10 is downloaded by torchvision under:
