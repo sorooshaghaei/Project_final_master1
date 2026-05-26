@@ -1,0 +1,279 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.15cm]{geometry}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{titlesec}
+
+\tcbuselibrary{breakable,skins}
+
+\definecolor{SorooshGold}{HTML}{A86F00}
+\definecolor{SorooshGoldSoft}{HTML}{FFF7E3}
+\definecolor{RayaneBlue}{HTML}{155A9C}
+\definecolor{RayaneBlueSoft}{HTML}{EDF6FF}
+\definecolor{DarkNavy}{HTML}{0B1F33}
+\definecolor{SoftGray}{HTML}{F6F8FA}
+\definecolor{LineGray}{HTML}{D6DEE8}
+
+\hypersetup{colorlinks=true,urlcolor=RayaneBlue,linkcolor=DarkNavy}
+
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Direct Presentation Script}
+\rhead{Soroosh and Rayane}
+\cfoot{Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\Large\bfseries\color{DarkNavy}}{}{0pt}{}
+\titleformat{\subsection}{\large\bfseries\color{DarkNavy}}{}{0pt}{}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist[itemize]{leftmargin=1.4em,itemsep=0.2em,topsep=0.25em}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=0.2em,topsep=0.25em}
+
+\newtcolorbox{sorooshbox}[1]{
+    breakable,
+    enhanced,
+    colback=SorooshGoldSoft,
+    colframe=SorooshGold,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={Soroosh - #1},
+    boxrule=0.9pt,
+    arc=2mm,
+    left=4mm,
+    right=4mm,
+    top=2mm,
+    bottom=2mm
+}
+
+\newtcolorbox{rayanebox}[1]{
+    breakable,
+    enhanced,
+    colback=RayaneBlueSoft,
+    colframe=RayaneBlue,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={Rayane - #1},
+    boxrule=0.9pt,
+    arc=2mm,
+    left=4mm,
+    right=4mm,
+    top=2mm,
+    bottom=2mm
+}
+
+\newtcolorbox{notebox}[1]{
+    breakable,
+    enhanced,
+    colback=SoftGray,
+    colframe=LineGray,
+    coltitle=DarkNavy,
+    fonttitle=\bfseries,
+    title={#1},
+    boxrule=0.6pt,
+    arc=2mm,
+    left=4mm,
+    right=4mm,
+    top=2mm,
+    bottom=2mm
+}
+
+\begin{document}
+
+\pagenumbering{roman}
+\begin{titlepage}
+\centering
+\vspace*{2.0cm}
+{\Huge\bfseries Self-Supervised Test-Time Training\par}
+\vspace{0.35cm}
+{\Large Activation Matching for CIFAR-10-C Distribution Shift\par}
+\vspace{1.1cm}
+{\large TER M1 VMI Final Project 2026 - Universit\'e Paris Cit\'e\par}
+\vspace{1.1cm}
+{\Large\bfseries Direct Oral Presentation Script\par}
+\vspace{0.4cm}
+{\large Speakers: Soroosh and Rayane\par}
+\vspace{0.8cm}
+\begin{tabular}{rl}
+\textbf{Total target time:} & about 15 minutes \\
+\textbf{Soroosh:} & about 7 minutes \\
+\textbf{Rayane:} & about 7 minutes \\
+\textbf{Conclusion:} & about 1 minute \\
+\end{tabular}
+\vfill
+{\small Repository: \href{https://github.com/sorooshaghaei/Project_final_master1}{github.com/sorooshaghaei/Project\_final\_master1}\par}
+\end{titlepage}
+\clearpage
+\pagenumbering{arabic}
+
+\section{Presentation Plan}
+
+\begin{notebox}{Direct structure}
+\begin{enumerate}
+    \item Soroosh: project question, distribution shift, CIFAR-10 / CIFAR-10-C setup, global method.
+    \item Rayane: ActMAD mechanism, implementation, metric, results, limitations, future work.
+    \item Shared conclusion: main result and main warning.
+\end{enumerate}
+\end{notebox}
+
+\begin{notebox}{Speaking rule}
+Use the boxes as the exact speech. Do not add long introductions. Do not explain the slides one by one unless the teacher asks. State the point, give the number, then move on.
+\end{notebox}
+
+\section{Soroosh - About 7 Minutes}
+
+\begin{sorooshbox}{Opening}
+Our project studies a robustness problem in image classification. A model is trained on clean CIFAR-10 images, but it is evaluated on corrupted CIFAR-10-C images. The question is direct: can the model adapt at test time without target labels and recover accuracy under distribution shift?
+
+The method we test combines SimCLR for source pretraining and ActMAD for test-time adaptation. SimCLR gives us a source feature extractor. ActMAD adapts the model on corrupted target batches by matching target activation statistics to source activation statistics.
+\end{sorooshbox}
+
+\begin{sorooshbox}{Problem}
+The core problem is distribution shift. In the clean source domain, the model sees normal CIFAR-10 images. In the target domain, the same kind of objects are affected by corruption: noise, blur, fog, pixelation, compression, contrast, brightness, and other visual changes.
+
+Formally, the source distribution is not equal to the target distribution: $P(X_{source}) \neq P(X_{target})$. This matters because the model can learn features that work on clean images but become unstable when the image appearance changes.
+
+The important constraint is that the target data is unlabeled during adaptation. We cannot use the correct class labels to update the model. The adaptation must use only the target images themselves.
+\end{sorooshbox}
+
+\begin{sorooshbox}{Data}
+The source dataset is CIFAR-10. It contains small color images from ten classes, such as airplanes, cars, birds, cats, dogs, ships, and trucks. In our setup, clean CIFAR-10 is used for source training.
+
+The target dataset is CIFAR-10-C. It contains corrupted versions of CIFAR-10. The project evaluates 15 corruption types at severity level 5. Severity 5 is the hardest level, so this is a strong robustness test.
+
+Each corruption slice contains 10,000 samples. For test-time training, the batch size is 16. The model receives a corrupted unlabeled batch, adapts on that batch, and then predicts the classes.
+\end{sorooshbox}
+
+\begin{sorooshbox}{Method overview}
+The pipeline has two stages. First, we train the source model with SimCLR on clean CIFAR-10. This stage learns a representation using self-supervised contrastive learning. The backbone is ResNet18 adapted for CIFAR images.
+
+After source training, the project saves the backbone, the classifier, and the source activation statistics. These artifacts are needed for the target stage.
+
+Second, during target evaluation, we use ActMAD. The corrupted CIFAR-10-C batch is passed through the model. ActMAD compares the activation statistics of this corrupted batch with the saved activation statistics from clean source data.
+
+The goal is to make the target activations look statistically closer to the source activations. In practical terms, the method tries to reduce the gap created by the corruption before making the final prediction.
+\end{sorooshbox}
+
+\begin{sorooshbox}{Why this setup matters}
+This setup is useful because it matches a real deployment situation. A model may be trained in clean conditions, but later it receives images from a different condition. The target data can be noisy, blurred, compressed, or affected by weather.
+
+Retraining the full model with labeled target data is not always possible. Test-time adaptation is a more practical idea: adapt when the data arrives, without labels, and improve the prediction immediately.
+
+So the project is not only checking accuracy. It is checking whether self-supervised source features can support unlabeled adaptation when the input distribution changes.
+\end{sorooshbox}
+
+\begin{sorooshbox}{Transition}
+Now Rayane will explain the technical mechanism: how ActMAD matches activations, what the implementation does, and what results we obtained.
+\end{sorooshbox}
+
+\section{Rayane - About 7 Minutes}
+
+\begin{rayanebox}{ActMAD mechanism}
+ActMAD means activation matching. The method compares internal activation statistics between source and target data. For each selected layer, the project uses the source mean and source standard deviation as references.
+
+For the target batch, ActMAD computes the target mean and target standard deviation. Then it minimizes the distance between target and source statistics. The target mean is pulled toward the source mean, and the target standard deviation is pulled toward the source standard deviation.
+
+The key point is that no target label is used. The method does not ask whether the image is a car or a bird. It only asks whether the internal activation distribution of the corrupted batch is close to the activation distribution of clean source data.
+\end{rayanebox}
+
+\begin{rayanebox}{What is updated}
+ActMAD does not retrain the whole model. During target-batch adaptation, it updates only normalization-layer parameters. This keeps the adaptation limited and controlled.
+
+This design is important. If we updated too many parameters on a small unlabeled batch, the model could overfit or move in a harmful direction. Updating only normalization parameters gives the model some flexibility while keeping the source-trained representation mostly stable.
+
+So the method is not full retraining. It is a small test-time correction based on activation mean and activation standard deviation.
+\end{rayanebox}
+
+\begin{rayanebox}{Implementation}
+The repository is organized around a clear pipeline. The main entry point is \texttt{run.py}. It supports the self-supervised training task and the test-time training task.
+
+The file \texttt{src/self\_supervised.py} contains the SimCLR model, the projection head, the NT-Xent loss, and the linear evaluation logic. The file \texttt{src/test\_time\_training.py} contains the activation hooks, source statistics, ActMAD loss, and the test-time adapter.
+
+The project also includes configuration files and evaluation scripts. The SSL stage creates the saved backbone, classifier, and source statistics. The TTT stage loads these artifacts and evaluates baseline inference against ActMAD adaptation.
+\end{rayanebox}
+
+\begin{rayanebox}{Experimental setup}
+For the source stage, the project uses SimCLR with ResNet18. The reported setup uses 200 epochs, batch size 256, learning rate 0.03, and projection dimension 128 by default in the code.
+
+For the target stage, ActMAD uses 10 adaptation steps per batch and learning rate 0.0001. The full evaluation is done on all 15 CIFAR-10-C corruptions at severity 5.
+
+The metric is top-1 accuracy. The improvement is computed as ActMAD accuracy minus baseline accuracy, reported in percentage points.
+\end{rayanebox}
+
+\begin{rayanebox}{Main result}
+The main result is clear. The frozen baseline reaches 54.82\% mean accuracy on CIFAR-10-C severity 5. After ActMAD adaptation, the mean accuracy becomes 70.22\%.
+
+That is an improvement of 15.40 percentage points. ActMAD improves 14 out of 15 corruptions.
+
+The strongest gains are on noise-like corruptions. Impulse noise improves by 41.59 percentage points. Gaussian noise improves by 40.66 percentage points. Shot noise improves by 36.07 percentage points.
+
+Pixelate also improves strongly, by 28.61 percentage points. These results show that activation matching is especially useful when corruption heavily disturbs the low-level image signal.
+\end{rayanebox}
+
+\begin{rayanebox}{Failure case and interpretation}
+The failure case is brightness. For brightness, the baseline accuracy is 82.21\%, and ActMAD gives 80.66\%. So the method loses 1.55 percentage points.
+
+This is important. The average gain is large, but ActMAD is not universally safe. Matching activation statistics helps for many corruptions, especially noise, but it can hurt when the shift does not need this type of correction.
+
+So the correct interpretation is not ``ActMAD always improves accuracy''. The correct interpretation is: ActMAD gives a strong average improvement on CIFAR-10-C severity 5, improves most corruptions, but still needs a safety mechanism.
+\end{rayanebox}
+
+\begin{rayanebox}{Step sweep}
+The project also includes a step sweep on shot noise. The baseline for shot noise is 33.02\%. With adaptation, the reported accuracy increases as the number of steps increases.
+
+At 3 steps, accuracy is 53.60\%. At 5 steps, it is 60.34\%. At 10 steps, it reaches 69.09\%.
+
+This supports the idea that adaptation is doing useful work on shot noise. But the repository does not provide runtime or latency measurements, so we cannot say yet how expensive these steps are in practice.
+\end{rayanebox}
+
+\begin{rayanebox}{Limitations and future work}
+The main limitations are clear. First, the full reported evaluation is only CIFAR-10-C severity 5. Second, there is no hardware, runtime, memory, or latency report. Third, there is no multi-seed mean and standard deviation.
+
+These limits matter because a test-time method must be judged by both accuracy and cost. If adaptation improves accuracy but is too slow or too memory-heavy, deployment becomes harder.
+
+The future work is therefore direct: add runtime and memory profiling, report multi-seed statistics, test lower severities and broader corruptions, and add a safety gate that rejects adaptation when it is likely to hurt, such as in the brightness case.
+\end{rayanebox}
+
+\section{Shared Final Conclusion - About 1 Minute}
+
+\begin{sorooshbox}{Conclusion part 1}
+The project shows that clean source training is not enough under strong corruptions. CIFAR-10-C creates a real distribution shift, and the frozen baseline loses accuracy.
+\end{sorooshbox}
+
+\begin{rayanebox}{Conclusion part 2}
+Using SimCLR source features with ActMAD test-time activation matching improves mean accuracy from 54.82\% to 70.22\%, a gain of 15.40 percentage points. The method improves 14 out of 15 corruptions, with the largest gains on noise.
+\end{rayanebox}
+
+\begin{sorooshbox}{Final sentence}
+The main warning is brightness: adaptation is useful, but not always safe. The next step is safe test-time adaptation with runtime profiling and multi-seed validation.
+\end{sorooshbox}
+
+\section{What to Remember}
+
+\begin{notebox}{Key points}
+\begin{itemize}
+    \item Problem: $P(X_{source}) \neq P(X_{target})$.
+    \item Source: clean CIFAR-10. Target: CIFAR-10-C corrupted images.
+    \item Method: SimCLR source pretraining + ActMAD test-time adaptation.
+    \item ActMAD matches activation mean and standard deviation between target and source.
+    \item No target labels are used during adaptation.
+    \item Main result: 54.82\% to 70.22\%, so +15.40 percentage points.
+    \item Improved corruptions: 14 out of 15.
+    \item Best gains: impulse noise, Gaussian noise, shot noise.
+    \item Failure case: brightness, -1.55 percentage points.
+    \item Future work: safety gate, runtime profiling, memory profiling, multi-seed statistics, broader corruption tests.
+\end{itemize}
+\end{notebox}
+
+\end{document}
