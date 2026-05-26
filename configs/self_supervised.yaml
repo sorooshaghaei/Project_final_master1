@@ -11,7 +11,7 @@ model:
 
 training:
   method: simclr
-  epochs: 200
+  epochs: 100
   batch_size: 256 # larger batch for better convergence
   lr: 0.03
 

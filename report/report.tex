@@ -460,6 +460,10 @@ python run.py --task ttt --config configs/test_time_training.yaml
 \end{lstlisting}
 
 The baseline accuracy was 48.34\%, the ActMAD TTT accuracy was 55.78\%, and the improvement was 7.44 percentage points.
+The selected TTT result is saved in:
+\begin{lstlisting}
+results/test_time_training/results.csv
+\end{lstlisting}
 
 \subsection{All-corruption evaluation}
 
@@ -482,7 +486,7 @@ This script is the entry point for a larger run over the listed corruptions.
 
 \subsection{Available numerical results}
 
-The available numbers are summarized in Table~\ref{tab:final-summary}.
+The available numbers are summarized in Table~\ref{tab:final-summary}. The selected TTT row is stored in \texttt{results/test\_time\_training/results.csv}.
 
 \begin{table}[H]
 \centering
@@ -505,7 +509,7 @@ Improvement & +7.44 percentage points\\
 
 \begin{table}[H]
 \centering
-\caption{Selected TTT evaluation.}
+\caption{Selected TTT evaluation from \texttt{results/test\_time\_training/results.csv}.}
 \label{tab:available-ttt}
 \begin{tabular}{lccc}
 \toprule
@@ -558,7 +562,7 @@ Test-time adaptation is not automatically safe. The model adapts without labels.
 \section{Limitations}
 % =================================================
 
-The main limitation is evaluation coverage. The final TTT result is for one selected setting. The final files do not include \texttt{results/test\_time\_training/results.csv}, a table over all 15 CIFAR-10-C corruptions, or a mean score over all corruptions. The terminal output is enough to report the baseline and ActMAD accuracies for the selected run, but a saved CSV would make the result easier to check and repeat.
+The main limitation is evaluation coverage. The saved TTT CSV contains one selected setting. It does not include a table over all 15 CIFAR-10-C corruptions or a mean score over all corruptions.
 
 The settings were not fully compared. The report uses ten ActMAD steps and learning rate \(10^{-4}\). It does not compare several step counts, batch sizes, learning rates, or sets of adapted parameters.
 
@@ -584,7 +588,7 @@ results/self_supervised/classifier.pt
 results/self_supervised/source_stats.pt
 \end{lstlisting}
 
-The local CSV output path is:
+The TTT CSV output path is:
 \begin{lstlisting}
 results/test_time_training/results.csv
 \end{lstlisting}

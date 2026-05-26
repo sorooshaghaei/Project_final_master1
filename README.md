@@ -47,7 +47,7 @@ Project_final_master1/
 
 ## Run
 
-The main self-supervised configuration is `configs/self_supervised.yaml`. It trains SimCLR for **200 epochs** with batch size `256` and learning rate `0.03`.
+The main self-supervised configuration is `configs/self_supervised.yaml`. It trains SimCLR for **100 epochs** with batch size `256` and learning rate `0.03`.
 
 ```bash
 cd Project_final_master1
@@ -60,6 +60,8 @@ Run the self-supervised command first. It creates the files expected by TTT:
 `results/self_supervised/classifier.pt`, and
 `results/self_supervised/source_stats.pt`.
 The TTT config reads the classifier from `model.classifier_path`.
+The TTT command saves its selected-run CSV here:
+`results/test_time_training/results.csv`.
 
 ## Data Paths
 

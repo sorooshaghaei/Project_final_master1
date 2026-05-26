@@ -1,5 +1,5 @@
-# unified entry point for ter experiments
 import argparse
+import csv
 import random
 import yaml
 import numpy as np
@@ -70,6 +70,29 @@ def limited_loader(loader, max_samples: int | None, shuffle: bool):
         num_workers=loader.num_workers,
         pin_memory=loader.pin_memory,
     )
+
+
+def save_ttt_results_csv(output_path: Path, row: dict) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "corruption",
+        "severity",
+        "batch_size",
+        "method",
+        "steps_per_batch",
+        "lr",
+        "baseline_accuracy_percent",
+        "actmad_accuracy_percent",
+        "improvement_percentage_points",
+        "baseline_correct",
+        "baseline_total",
+        "actmad_correct",
+        "actmad_total",
+    ]
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow(row)
 
 
 def main() -> None:
@@ -228,6 +251,27 @@ def main() -> None:
         res_ttt = evaluate_ttt(adapter, loader, device, use_ttt=True)
         print(f"TTT accuracy: {res_ttt['accuracy']*100:.2f}%")
         print(f"Improvement: {(res_ttt['accuracy'] - res_base['accuracy'])*100:.2f}%")
+
+        results_path = project_path("results/test_time_training/results.csv")
+        save_ttt_results_csv(
+            results_path,
+            {
+                "corruption": dataset_cfg["corruption"],
+                "severity": dataset_cfg["severity"],
+                "batch_size": dataset_cfg["batch_size"],
+                "method": adaptation_cfg["method"],
+                "steps_per_batch": adaptation_cfg["steps_per_batch"],
+                "lr": adaptation_cfg["lr"],
+                "baseline_accuracy_percent": round(res_base["accuracy"] * 100, 4),
+                "actmad_accuracy_percent": round(res_ttt["accuracy"] * 100, 4),
+                "improvement_percentage_points": round((res_ttt["accuracy"] - res_base["accuracy"]) * 100, 4),
+                "baseline_correct": res_base["correct"],
+                "baseline_total": res_base["total"],
+                "actmad_correct": res_ttt["correct"],
+                "actmad_total": res_ttt["total"],
+            },
+        )
+        print(f"[TTT] Results saved to {results_path}")
 
 if __name__ == "__main__":
     main()

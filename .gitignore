@@ -110,6 +110,8 @@ report/**/*.fls
 # Optional: common outputs
 #################################
 outputs/
-results/
+results/*
+!results/test_time_training/
+!results/test_time_training/*.csv
 models/
 checkpoints/

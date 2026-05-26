@@ -9,7 +9,7 @@ from torchvision import models
 @dataclass
 class SSLConfig:
     method: str = "simclr"
-    epochs: int = 200
+    epochs: int = 100
     batch_size: int = 128
     lr: float = 3e-4
     temperature: float = 0.5
