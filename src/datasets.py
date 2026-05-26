@@ -1,26 +1,23 @@
-"""dataset registry for ttt and ssl pipelines."""
 # dataset registry and loaders for ttt and ssl
 from __future__ import annotations
 
 from typing import Any
 
 from dataclasses import dataclass
-import random
-from typing import Optional, Sequence, Tuple
+from typing import Sequence, Tuple
 
+import torch
 from torch.utils.data import DataLoader, Dataset
 from pathlib import Path
 
 try:
     # optional torchvision import
     from torchvision import datasets, transforms
-    from torchvision.transforms import functional as TF
 
     _TORCHVISION_AVAILABLE = True
 except ImportError:  # no cover
     datasets = None
     transforms = None
-    TF = None
     _TORCHVISION_AVAILABLE = False
 
 
@@ -31,53 +28,7 @@ class DatasetSpec:
     num_classes: int
 
 
-@dataclass
-class RotationShiftConfig:
-    enabled: bool = False
-    # mode can be "random" or "fixed"
-    mode: str = "random"
-    angles: Sequence[int] = (0, 90, 180, 270)
-    fixed_angle: int = 90
-    seed: int = 123
-
-
-# dataset wrapper that rotates each sample to simulate distribution shift
-class RotationShiftDataset(Dataset):
-    """rotate samples to simulate test shift."""
-    def __init__(self, base: Dataset, config: RotationShiftConfig):
-        if not _TORCHVISION_AVAILABLE:
-            raise ImportError("torchvision is required for RotationShiftDataset.")
-        if config.mode not in {"random", "fixed"}:
-            raise ValueError(f"Unsupported rotation mode: {config.mode}")
-
-        self.base = base
-        self.config = config
-        # cache angle list for fast indexing
-        self._angles = list(config.angles)
-        if not self._angles:
-            raise ValueError("Rotation angles list cannot be empty.")
-
-        if config.mode == "fixed":
-            # every sample uses the same rotation angle
-            self._index_angles = [config.fixed_angle] * len(base)
-        else:
-            # assign a deterministic random angle per sample
-            rng = random.Random(config.seed)
-            self._index_angles = [rng.choice(self._angles) for _ in range(len(base))]
-
-    def __len__(self) -> int:
-        return len(self.base)
-
-    def __getitem__(self, index: int):
-        image, label = self.base[index]
-        # rotate the image to create a shifted test distribution
-        angle = self._index_angles[index]
-        image = TF.rotate(image, angle)
-        return image, label
-
-
 def get_dataset_spec(name: str) -> DatasetSpec:
-    """return metadata for a dataset name."""
     # return dataset metadata
     registry = {
         # cifar-10 is stored under data/raw
@@ -91,14 +42,16 @@ def get_dataset_spec(name: str) -> DatasetSpec:
 
 
 def _require_torchvision() -> None:
-    """check that torchvision is installed."""
     # guard for optional torchvision dependency
     if not _TORCHVISION_AVAILABLE:
         raise ImportError("torchvision is required to build CIFAR-10 datasets.")
 
 
+def _pin_memory_enabled() -> bool:
+    return torch.cuda.is_available()
+
+
 def build_cifar10_transforms(train: bool) ->Any:
-    """build cifar-10 transforms."""
     # standard cifar-10 normalization
     _require_torchvision()
     mean = (0.4914, 0.4822, 0.4465)
@@ -123,7 +76,6 @@ def build_cifar10_transforms(train: bool) ->Any:
     )
 # two augmented views for ssl
 class TwoViewsTransform:
-    """return two augmented views of one image."""
     def __init__(self):
         _require_torchvision()
         self.t = transforms.Compose([
@@ -139,7 +91,6 @@ class TwoViewsTransform:
         return self.t(x), self.t(x)
     
 def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, download: bool = False,) -> DataLoader:
-    """build the simclr pretraining loader."""
     _require_torchvision()
     dataset = datasets.CIFAR10(
         root=root,
@@ -152,32 +103,14 @@ def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, d
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=_pin_memory_enabled(),
     )
         
-
-def rotation_shift_from_config(config: Optional[dict]) -> RotationShiftConfig:
-    # build rotation settings or disable them
-    """build rotation shift settings from config."""
-    if not config:
-        return RotationShiftConfig(enabled=False)
-
-    return RotationShiftConfig(
-        enabled=bool(config.get("enabled", False)),
-        mode=str(config.get("mode", "random")),
-        angles=tuple(config.get("angles", (0, 90, 180, 270))),
-        fixed_angle=int(config.get("fixed_angle", 90)),
-        seed=int(config.get("seed", 123)),
-    )
-
 
 def build_cifar10_datasets(
     root: str,
     download: bool = False,
-    rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[Dataset, Dataset]:
-    """build cifar-10 train and test datasets."""
-    # add optional rotation shift on test data
     _require_torchvision()
     # training data uses standard augmentations
     train_dataset = datasets.CIFAR10(
@@ -194,10 +127,6 @@ def build_cifar10_datasets(
         transform=build_cifar10_transforms(train=False),
     )
 
-    if rotation_shift and rotation_shift.enabled:
-        # wrap test set to apply rotation shift
-        test_dataset = RotationShiftDataset(test_dataset, rotation_shift)
-
     return train_dataset, test_dataset
 
 
@@ -206,14 +135,11 @@ def build_cifar10_loaders(
     batch_size: int = 128,
     num_workers: int = 2,
     download: bool = False,
-    rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[DataLoader, DataLoader]:
-    """build cifar-10 train and test loaders."""
     # build train and test datasets first
     train_dataset, test_dataset = build_cifar10_datasets(
         root=root,
         download=download,
-        rotation_shift=rotation_shift,
     )
 
     # shuffle training data, keep test order fixed
@@ -222,14 +148,14 @@ def build_cifar10_loaders(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=_pin_memory_enabled(),
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=_pin_memory_enabled(),
     )
 
     return train_loader, test_loader
@@ -237,7 +163,6 @@ def build_cifar10_loaders(
 # cifar-10-c loader for ttt evaluation
 import numpy as np 
 from torch.utils.data import TensorDataset
-import torch
 
 CIFAR10C_CORRUPTIONS = [
     "gaussian_noise",
@@ -258,16 +183,21 @@ CIFAR10C_CORRUPTIONS = [
 ]
 
 def missing_cifar10c_files(root: str | Path, corruptions: Sequence[str]) -> list[Path]:
-    """return missing cifar-10-c files for corruptions."""
     data_root = Path(root) / "CIFAR-10-C"
     expected = [data_root / "labels.npy"]
     expected.extend(data_root / f"{corruption}.npy" for corruption in corruptions)
     return [path for path in expected if not path.exists()]
 
-def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size: int = 1, num_workers: int = 2) -> DataLoader:
-    """load one cifar-10-c corruption and severity."""
+def build_cifar10c_loader(
+    root: str,
+    corruption: str,
+    severity: int,
+    batch_size: int = 1,
+    num_workers: int = 2,
+    max_samples: int | None = None,
+) -> DataLoader:
     if corruption not in CIFAR10C_CORRUPTIONS:
-        raise ValueError(f"Corruption inconnue: {corruption}")
+        raise ValueError(f"unknown corruption: {corruption}")
     if not 1 <= severity <= 5:
         raise ValueError("severity must be between 1 and 5")
     
@@ -291,6 +221,10 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     end = severity * 10_000
     data = data[start:end]
     labels = labels[start:end]
+    if max_samples is not None:
+        max_samples = min(int(max_samples), len(data))
+        data = data[:max_samples]
+        labels = labels[:max_samples]
 
     # standard cifar-10 normalization
     mean = np.array([0.4914, 0.4822, 0.4465])
@@ -301,4 +235,10 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     labels = torch.tensor(labels, dtype=torch.long)
 
     dataset = TensorDataset(data, labels)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=_pin_memory_enabled(),
+    )

@@ -176,7 +176,7 @@ The project does not try to design a new backbone architecture. The backbone is 
 
 The adaptation strategy implemented in the project is ActMAD-style activation matching \citep{mirza2023actmad}. The model first records activation statistics on clean source data. At test time, it receives a corrupted batch and updates a limited subset of parameters so that the target activations become closer to the source activations. The current implementation adapts normalization parameters and keeps the rest of the model frozen. The classification head is then applied after this short adaptation.
 
-The self-supervised configuration schedules SimCLR training for 200 epochs.The completed metrics: linear evaluation accuracy reached 67.05\%, and the selected test-time evaluation improved from 48.34\% without adaptation to 55.78\% after ActMAD TTT. The gain is 7.44 percentage points.
+In the experiment we used 100 epochs of SimCLR pretraining. Linear evaluation reached 67.05\%, and the selected test-time evaluation improved from 48.34\% without adaptation to 55.78\% after ActMAD TTT. The gain is 7.44 percentage points. A longer run, for example 200 epochs or more, would likely improve the representation, but it was not practical on the available computers because it would need faster memory and more compute.
 
 % =================================================
 \section{Scientific Background and Related Work}
@@ -276,7 +276,7 @@ The first stage trains a self-supervised encoder on CIFAR-10. The loader returns
 
 The model is defined in \texttt{src/self\_supervised.py}. It uses a torchvision ResNet18 with the final classification layer replaced by an identity mapping. The output of the backbone is then passed through a projection head. The projection head is a small multilayer perceptron with a linear layer, ReLU activation, and another linear layer. The output is normalized before the contrastive loss.
 
-For each batch, the training loop computes two projected representations, one for each view. The NT-Xent loss is then applied. The optimizer used in the current code is Adam. A cosine annealing scheduler is also created. The current configuration runs for 200 epochs and prints the training loss at each epoch.
+For each batch, the training loop computes two projected representations, one for each view. The NT-Xent loss is then applied. The optimizer is Adam, with a cosine annealing scheduler. 
 
 \subsection{Feature extraction and projection head}
 
@@ -295,7 +295,7 @@ The backbone checkpoint used for TTT is saved as:
 results/self_supervised/simclr_backbone.pt
 \end{lstlisting}
 
-Linear evaluation is not the final project goal, but it gives an important diagnostic. The final value is 67.05\%. This means the self-supervised representation contains useful class information. It also shows that the representation is not extremely strong. The later TTT result should be read with that limitation in mind.
+Linear evaluation is not the final project goal, but it gives an important diagnostic. The final value is 67.05\%, which shows that the representation contains useful class information but is not yet very strong. The TTT result should be read with that limitation in mind.
 
 \subsection{Source activation statistics}
 
@@ -319,35 +319,33 @@ At each adaptation step, the model processes the unlabeled target batch, the act
 \section{Implementation Details}
 % =================================================
 
-\subsection{Implementation and Repository Structure}
+\subsection{Implementation and repository structure}
 
-To support our experiments, we organized our codebase in a modular way to make it easier to run tasks and ensure reproducibility. The project specifically focuses on Test-Time Training (TTT) and Self-Supervised Learning (SSL).
+The repository is organized around two stages: Self-Supervised Learning (SSL) and Test-Time Training (TTT). The core code is in \texttt{src/}, experiment settings are in \texttt{configs/}, evaluation scripts are in \texttt{scripts/}, and datasets are expected under \texttt{data/}.
 
-Rather than placing everything in a single large script, we divided the project into several standard directories. The main folders include \texttt{src/} for our core code, \texttt{configs/} for experiment settings, \texttt{scripts/} for evaluation routines, and \texttt{data/} for the datasets. We also included folders like \texttt{papers/}, \texttt{docs/}, \texttt{notebooks/}, \texttt{presentation/}, and \texttt{report/} to keep all project-related materials neatly in one place.
-
-Everything is executed through a single entry point: \texttt{run.py}. From this file, we can launch our two main tasks simply by specifying them in the command line:
+The single entry point is \texttt{run.py}. It accepts two main tasks:
 \begin{itemize}[leftmargin=1.4em]
-    \item \texttt{self\_supervised} (or simply \texttt{ssl}) for the pre-training phase;
-    \item \texttt{test\_time\_training} (or simply \texttt{ttt}) for the adaptation phase.
+    \item \texttt{self\_supervised} or \texttt{ssl} for the pretraining phase;
+    \item \texttt{test\_time\_training} or \texttt{ttt} for the adaptation phase.
 \end{itemize}
 
-The core of our work relies on the following key implementation files:
+Main implementation files:
 \begin{itemize}[leftmargin=1.4em]
     \item \texttt{run.py}: Handles command-line argument parsing, selects which task to run, loads model checkpoints, and manages the overall execution flow.
     \item \texttt{src/self\_supervised.py}: Contains the entire SSL pipeline. This includes the SimCLR architecture, the projection head, the NT-Xent loss, the training loop, and the linear evaluation step. It is also responsible for extracting the source-domain statistics.
     \item \texttt{src/test\_time\_training.py}: Implements the test-time adaptation logic. This covers the activation hooks needed to gather statistics, the ActMAD loss function, and the TTT adapter itself.
-    \item \texttt{src/datasets.py}: Manages our data loading. It includes the loaders for standard CIFAR-10, the stochastic two-view augmentations needed for SimCLR, and the loaders for the corrupted CIFAR-10-C images.
-    \item \texttt{src/metrics.py}: Computes the top-1 accuracy so we can reliably compare the baseline model against our TTT approach.
-    \item \texttt{scripts/eval\_corruption.py}: A helper script we use to systematically evaluate the model's performance across all the different corruption types in CIFAR-10-C.
+    \item \texttt{src/datasets.py}: Manages data loading for standard CIFAR-10, SimCLR two-view augmentations, and corrupted CIFAR-10-C images.
+    \item \texttt{src/metrics.py}: Computes top-1 accuracy for baseline and TTT evaluation.
+    \item \texttt{scripts/eval\_corruption.py}: Runs evaluation across the CIFAR-10-C corruption types.
 \end{itemize}
 
 \subsection{Configuration files}
 
-The self-supervised configuration is \texttt{configs/self\_supervised.yaml}. It uses CIFAR-10 at \texttt{data/raw}, enables download, and sets the training method to SimCLR. The current configuration uses 200 epochs. The recorded metrics in this report still come from the earlier 100-epoch terminal output.
+Self-supervised configuration is \texttt{configs/self\_supervised.yaml}. It uses CIFAR-10 at \texttt{data/raw}, enables download, and sets the training method to SimCLR.
 
 \begin{table}[H]
 \centering
-\caption{Self-supervised configuration used for the final SSL run.}
+\caption{Self-supervised setting used for the reported SSL run.}
 \begin{tabular}{ll}
 \toprule
 Parameter & Value\\
@@ -358,8 +356,9 @@ Device in final log & \texttt{mps}\\
 Dataset & CIFAR-10\\
 Dataset root & \texttt{data/raw}\\
 Backbone & ResNet18\\
+Projection dimension & 128\\
 Method & SimCLR\\
-Epochs & 200\\
+Reported epochs & 100\\
 Batch size & 256\\
 Learning rate & 0.03\\
 Backbone output & \texttt{results/self\_supervised/simclr\_backbone.pt}\\
@@ -391,7 +390,6 @@ Classifier path & \texttt{results/self\_supervised/classifier.pt}\\
 Adaptation method & ActMAD\\
 Steps per batch & 10\\
 Adaptation learning rate & 0.0001\\
-Output directory & \texttt{results/test\_time\_training}\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -405,11 +403,6 @@ results/self_supervised/simclr_backbone.pt
 results/self_supervised/source_stats.pt
 \end{lstlisting}
 These files are produced by the self-supervised stage. The TTT stage loads them.
-
-The local CSV output path is:
-\begin{lstlisting}
-results/test_time_training/results.csv
-\end{lstlisting}
 
 \subsection{CIFAR-10-C data path}
 
@@ -447,13 +440,13 @@ The alias is:
 \begin{lstlisting}
 python run.py --task ssl --config configs/self_supervised.yaml
 \end{lstlisting}
-the loss was printed once per epoch. The initial loss was 5.6214 and the final recorded loss at epoch 100 was 4.6586.
+The loss was printed once per epoch. The initial loss was 5.6214 and the final recorded loss at epoch 100 was 4.6586.
 
 \subsection{Linear evaluation}
 
 After SimCLR pretraining, \texttt{run.py} calls the linear evaluation step. The backbone is frozen and a linear classifier is trained on top of the learned features. The classifier is then evaluated on CIFAR-10. The final linear evaluation accuracy was 67.05\%.
 
-The result is a useful improvement over the earlier smoke run. It shows that the representation learned class-relevant features. It also leaves space for improvement. A stronger supervised CIFAR-10 model would normally be expected to achieve substantially higher accuracy, so the robustness results must be interpreted with the quality of the encoder in mind.
+The result is stronger than the earlier smoke run, but it still leaves space for improvement. A stronger CIFAR-10 encoder would normally be expected to improve both clean accuracy and robustness.
 
 \subsection{Test-time adaptation setup}
 
@@ -489,7 +482,7 @@ This script is the entry point for a larger run over the listed corruptions.
 
 \subsection{Available numerical results}
 
-The available numbers are summarized in Table~\ref{tab:final-summary}. The current configuration now uses 200 SSL epochs, while the saved metric values come from the earlier 100-epoch SSL run and the selected TTT evaluation.
+The available numbers are summarized in Table~\ref{tab:final-summary}.
 
 \begin{table}[H]
 \centering
@@ -499,8 +492,7 @@ The available numbers are summarized in Table~\ref{tab:final-summary}. The curre
 \toprule
 Experiment & Value\\
 \midrule
-Current self-supervised config epochs & 200\\
-Recorded self-supervised run epochs & 100\\
+Self-supervised run epochs & 100\\
 Initial SimCLR loss & 5.6214\\
 Final SimCLR loss & 4.6586\\
 Linear evaluation accuracy & 67.05\%\\
@@ -524,11 +516,10 @@ Selected TTT evaluation & 48.34\% & 55.78\% & +7.44 pp\\
 \end{tabular}
 \end{table}
 
-These results cover the selected setting from \texttt{configs/test\_time\_training.yaml}. They are not a full CIFAR-10-C benchmark: the final files do not include a CSV over all 15 corruptions or a mean score over all corruptions.
 
 \subsection{Training loss evolution}
 
-The saved SimCLR loss log decreased from 5.6214 at epoch 1 to 4.6586 at epoch 100. The curve in Figure~\ref{fig:training-loss} is built only from the 100 losses printed in the earlier terminal log. After rerunning the 200-epoch configuration, this figure and table should be regenerated from the new log.
+The saved SimCLR loss log decreased from 5.6214 at epoch 1 to 4.6586 at epoch 100. The curve in Figure~\ref{fig:training-loss} is built from the 100 losses printed in the terminal log. 
 
 \begin{figure}[H]
 \centering
@@ -537,7 +528,7 @@ The saved SimCLR loss log decreased from 5.6214 at epoch 1 to 4.6586 at epoch 10
 \label{fig:training-loss}
 \end{figure}
 
-The decrease is strongest during the first epochs. After roughly epoch 70, the loss changes more slowly and oscillates around a lower value. This does not prove that the representation is optimal, but it shows that the contrastive objective was optimized across the full scheduled run.
+The decrease is strongest during the first epochs. After roughly epoch 70, the loss changes more slowly and oscillates around a lower value. This does not prove that the representation is optimal, but it shows that the contrastive objective was optimized across the reported run.
 
 \begin{table}[H]
 \centering
@@ -562,8 +553,6 @@ The baseline accuracy under the selected shifted evaluation is lower than the 67
 The ActMAD result recovers part of the lost performance. Matching target activation statistics to source activation statistics can move the adapted model toward the distribution on which the classifier was trained. In this run, that movement improved accuracy rather than damaging it. The improvement is large enough to be meaningful here: +7.44 percentage points is not just a rounding effect.
 
 Test-time adaptation is not automatically safe. The model adapts without labels. A lower activation matching loss does not always mean better classification. If the target batch is small, unbalanced, or too corrupted, the statistics can be misleading. The optimizer may make the activations look more source-like while losing useful class information. This is why future experiments should keep negative results visible and not only report successful cases.
-
-The SSL stage produces a usable backbone, the linear classifier checks the learned features, source statistics are saved, and TTT loads the saved files and performs adaptation.
 
 % =================================================
 \section{Limitations}
@@ -612,9 +601,7 @@ The terminal warnings observed during the provided run are not central to the sc
 \section{Final Remarks and Future Work}
 % =================================================
 
-The project implements a complete pipeline for self-supervised test-time adaptation on image classification. SimCLR trains a ResNet18 backbone on CIFAR-10. A linear classifier evaluates the learned representation. Source activation statistics are computed on clean data. At test time, ActMAD-style adaptation updates normalization parameters on unlabeled corrupted batches before classification.
-
-The recorded results are positive for the selected setting. The TTT evaluation improved accuracy from 48.34\% to 55.78\%, a gain of 7.44 percentage points. 
+The completed 100-epoch run shows that the SSL backbone is usable, but still limited. In the selected corrupted setting, ActMAD improves accuracy by 7.44 percentage points, from 48.34\% to 55.78\%.
 
 The next practical step is to run \texttt{scripts/eval\_corruption.py}, save the resulting CSV, and compare ActMAD across all listed corruptions and severity levels. It would also be useful to test several adaptation step counts, several batch sizes, and at least one other test-time adaptation method.
 

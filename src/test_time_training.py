@@ -15,7 +15,6 @@ class TTTConfig:
 
 # activation hooks
 class ActivationStats:
-    """store layer activations during ttt."""
     def __init__(self):
         self.hooks = []
         self.activations = {}
@@ -40,14 +39,12 @@ class ActivationStats:
         self.hooks.clear()
 
 def _bn_layer_names(model) -> list:
-    """return all bn and ln layer names."""
     return [ 
         name for name, m in model.named_modules()
         if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm, nn.BatchNorm1d))
     ]
 
 def _layer_name_candidates(name: str) -> list[str]:
-    """return likely names for wrapped modules."""
     prefixes = ("0.", "backbone.", "model.", "module.")
     candidates = [name]
     for prefix in prefixes:
@@ -66,7 +63,6 @@ def _source_stats_for_layer(name: str, source_stats: dict):
 
 # source stats for actmad
 def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
-    """save source activation means and stds."""
     hook = ActivationStats()
     names = _bn_layer_names(model)
     if not names:
@@ -101,7 +97,6 @@ def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
 
 # actmad adaptation loss
 def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
-    """match target activations to source stats."""
     if not hook.activations:
         raise RuntimeError("actmad needs hooked activations")
 
@@ -139,7 +134,6 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
 
 class TTTAdapter:
     # small ttt adapter
-    """adapt a copied model on each target batch."""
     def __init__(self, model, config: TTTConfig, source_stats: dict):
         # keep adaptation settings
         self.config = config

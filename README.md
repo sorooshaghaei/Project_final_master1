@@ -5,7 +5,7 @@ TER M1 project focused on Test-Time Training and Self-Supervised Learning.
 Rayane KHATIM, Mehdi AGHAEI  
 Universite Paris Cite
 
-## Clean Structure
+## Structure
 ```
 Project_final_master1/
 ├── README.md
@@ -33,8 +33,7 @@ Project_final_master1/
     ├── raw/
 ```
 
-## What Each Part Means
-- `papers/`:TER PDFs and reference papers
+- `papers/`: TER PDFs and reference papers
 - `notebooks/`: exploration notebooks and paper-choice notebook
 - `src/test_time_training.py`: test-time adaptation 
 - `src/self_supervised.py`: self-supervised training 
@@ -48,7 +47,7 @@ Project_final_master1/
 
 ## Run
 
-The main self-supervised configuration is `configs/self_supervised.yaml`. It now trains SimCLR for **200 epochs** with batch size `256` and learning rate `0.03`.
+The main self-supervised configuration is `configs/self_supervised.yaml`. It trains SimCLR for **200 epochs** with batch size `256` and learning rate `0.03`.
 
 ```bash
 cd Project_final_master1
@@ -56,17 +55,11 @@ python run.py --task self_supervised --config configs/self_supervised.yaml
 python run.py --task ttt --config configs/test_time_training.yaml
 ```
 
-Run `self_supervised` first. It creates the files expected by TTT:
+Run the self-supervised command first. It creates the files expected by TTT:
 `results/self_supervised/simclr_backbone.pt`,
 `results/self_supervised/classifier.pt`, and
 `results/self_supervised/source_stats.pt`.
 The TTT config reads the classifier from `model.classifier_path`.
-
-Short aliases are also accepted:
-```bash
-python run.py --task ssl --config configs/self_supervised.yaml
-python run.py --task ttt --config configs/test_time_training.yaml
-```
 
 ## Data Paths
 

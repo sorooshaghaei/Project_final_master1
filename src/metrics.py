@@ -4,7 +4,6 @@ import torch
 
 def top1_accuracy(num_correct: int, num_total: int) -> float:
     # guard against division by zero
-    """compute top-1 accuracy."""
     if num_total <= 0:
         raise ValueError("num_total must be positive")
     return float(num_correct) / float(num_total)
@@ -12,7 +11,6 @@ def top1_accuracy(num_correct: int, num_total: int) -> float:
 # evaluate ttt against baseline
 
 def evaluate_ttt(adapter, test_loader, device: str, use_ttt: bool = True) -> Dict[str, float]:
-    """evaluate with or without ttt."""
     correct = total = 0
     for x, y in test_loader:
         x, y = x.to(device), y.to(device)
@@ -26,7 +24,6 @@ def evaluate_ttt(adapter, test_loader, device: str, use_ttt: bool = True) -> Dic
     return {"accuracy": acc, "correct": correct, "total": total}
 
 def mean_corruption_error(adapter, root: str, device: str, severity: int = 3, batch_size: int = 16, use_ttt: bool = True) -> float:
-    """compute mean error over cifar-10-c corruptions."""
     from src.datasets import build_cifar10c_loader, CIFAR10C_CORRUPTIONS
 
     errors = []

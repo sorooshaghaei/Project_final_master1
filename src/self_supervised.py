@@ -8,7 +8,6 @@ from torchvision import models
 
 @dataclass
 class SSLConfig:
-    """settings for ssl training."""
     method: str = "simclr"
     epochs: int = 200
     batch_size: int = 128
@@ -20,7 +19,6 @@ class SSLConfig:
 
 # simclr projection head
 class ProjectionHead(nn.Module):
-    """map backbone features to the contrastive space."""
     def __init__(self, in_dim: int, out_dim: int = 128):
         super().__init__()
         self.net = nn.Sequential(
@@ -34,7 +32,6 @@ class ProjectionHead(nn.Module):
 
 # nt-xent loss for simclr
 def nt_xent_loss(z1, z2, temperature: float = 0.5) -> torch.Tensor:
-    """compute the simclr contrastive loss."""
     B = z1.size(0)
     z = torch.cat([z1, z2], dim=0) 
     sim = (z @ z.T) / temperature
@@ -49,7 +46,6 @@ def nt_xent_loss(z1, z2, temperature: float = 0.5) -> torch.Tensor:
 
 # backbone and projection head
 class SimCLRModel(nn.Module):
-    """combine a backbone with a projection head."""
     def __init__(self, config: SSLConfig):
         super().__init__()
         base = getattr(models, config.backbone)(weights=None)
@@ -66,12 +62,10 @@ class SimCLRModel(nn.Module):
         return self.projector(h) # return projected features
     
     def encode(self, x):
-        """return raw backbone features."""
         return self.backbone(x)
 
 
 class SelfSupervisedTrainer:
-    """train simclr and export its artifacts."""
     def __init__(self, config: SSLConfig, device: str="mps" if torch.backends.mps.is_available() else "cpu"):
         # keep the ssl settings
         self.config = config
@@ -96,13 +90,18 @@ class SelfSupervisedTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                self.scheduler.step()
                 total_loss += loss.item()
-            print(f"Epoch {epoch+1}/{self.config.epochs}, Loss: {total_loss/len(train_loader):.4f}")
+
+            self.scheduler.step()
+            current_lr = self.optimizer.param_groups[0]["lr"]
+            print(
+                f"Epoch {epoch+1}/{self.config.epochs}, "
+                f"Loss: {total_loss/len(train_loader):.4f}, "
+                f"LR: {current_lr:.6f}"
+            )
         return train_loader
 
-    def linear_eval(self, train_loader, val_loader, num_classes: int = 10):
-        """train a linear classifier on frozen features."""
+    def linear_eval(self, train_loader, val_loader, num_classes: int = 10, epochs: int = 30):
         # freeze the backbone
         self.model.eval()
         for p in self.model.backbone.parameters():
@@ -111,7 +110,7 @@ class SelfSupervisedTrainer:
         clf = nn.Linear(self.model.feat_dim, num_classes).to(self.device) # set classes from the dataset
         opt = torch.optim.Adam(clf.parameters(), lr=1e-3)
 
-        for epoch in range(30):
+        for epoch in range(epochs):
             clf.train()
             for x, y in train_loader: # loader returns labeled images
                 x, y = x.to(self.device), y.to(self.device)

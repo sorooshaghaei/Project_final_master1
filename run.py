@@ -55,6 +55,22 @@ def set_seed(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
 
+def limited_loader(loader, max_samples: int | None, shuffle: bool):
+    if max_samples is None:
+        return loader
+
+    from torch.utils.data import DataLoader, Subset
+
+    max_samples = min(int(max_samples), len(loader.dataset))
+    dataset = Subset(loader.dataset, range(max_samples))
+    return DataLoader(
+        dataset,
+        batch_size=loader.batch_size,
+        shuffle=shuffle,
+        num_workers=loader.num_workers,
+        pin_memory=loader.pin_memory,
+    )
+
 
 def main() -> None:
     # parse cli arguments
@@ -75,6 +91,7 @@ def main() -> None:
     elif task == "ssl": task = "self_supervised"
 
     cfg = yaml.safe_load(config_path.read_text())
+    set_seed(int(cfg.get("seed", 42)))
     device = get_device()
     print(f"[TASK] {task} | [DEVICE] {device}")
 
@@ -83,29 +100,49 @@ def main() -> None:
         from src.self_supervised import SelfSupervisedTrainer, SSLConfig
         from src.datasets import build_cifar10_loaders, build_simclr_loader
 
+        if cfg["dataset"]["name"] != "cifar10":
+            raise ValueError("self_supervised expects dataset.name: cifar10")
+
+        model_cfg = cfg.get("model", {})
+        training_cfg = cfg["training"]
+        dataset_cfg = cfg["dataset"]
+        if training_cfg["method"] != "simclr":
+            raise ValueError("self_supervised supports only method: simclr")
         ssl_cfg = SSLConfig(
-            method=cfg["training"]["method"],
-            epochs=cfg["training"]["epochs"],
-            batch_size=cfg["training"]["batch_size"],
-            lr=cfg["training"]["lr"],
+            method=training_cfg["method"],
+            epochs=training_cfg["epochs"],
+            batch_size=training_cfg["batch_size"],
+            lr=training_cfg["lr"],
+            temperature=training_cfg.get("temperature", 0.5),
+            projection_dim=model_cfg.get("projection_dim", 128),
+            backbone=model_cfg.get("backbone", "resnet18"),
         )
 
         trainer = SelfSupervisedTrainer(ssl_cfg, device=device)
 
         simclr_loader = build_simclr_loader(
-            root=str(project_path(cfg["dataset"]["root"])),
-            batch_size=cfg["training"]["batch_size"],
-            download=cfg["dataset"].get("download", False),
+            root=str(project_path(dataset_cfg["root"])),
+            batch_size=training_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            download=dataset_cfg.get("download", False),
         )
 
         train_loader, val_loader = build_cifar10_loaders(
-            root=str(project_path(cfg["dataset"]["root"])),
-            batch_size=cfg["training"]["batch_size"],
-            download=cfg["dataset"].get("download", False),
+            root=str(project_path(dataset_cfg["root"])),
+            batch_size=training_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            download=dataset_cfg.get("download", False),
         )
+        simclr_loader = limited_loader(simclr_loader, dataset_cfg.get("max_simclr_samples"), shuffle=True)
+        train_loader = limited_loader(train_loader, dataset_cfg.get("max_train_samples"), shuffle=True)
+        val_loader = limited_loader(val_loader, dataset_cfg.get("max_test_samples"), shuffle=False)
 
         trainer.pretrain(simclr_loader) # train with two augmented views
-        clf, _ = trainer.linear_eval(train_loader, val_loader) # train the linear head
+        clf, _ = trainer.linear_eval(
+            train_loader,
+            val_loader,
+            epochs=training_cfg.get("linear_eval_epochs", 30),
+        ) # train the linear head
         log_cfg = cfg.get("logging", {})
         clf_path = project_path(log_cfg.get("classifier_path", "results/self_supervised/classifier.pt"))
         clf_path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,16 +167,23 @@ def main() -> None:
         from src.test_time_training import TTTAdapter, TTTConfig
         from src.datasets import build_cifar10c_loader
         from src.metrics import evaluate_ttt
-        import torchvision.models as tvm
 
         # load the backbone
         from src.self_supervised import SimCLRModel, SSLConfig
-        ssl_cfg = SSLConfig()
+        if cfg["dataset"]["name"] != "cifar10c":
+            raise ValueError("test_time_training expects dataset.name: cifar10c")
+
+        model_cfg = cfg["model"]
+        dataset_cfg = cfg["dataset"]
+        adaptation_cfg = cfg["adaptation"]
+        if adaptation_cfg["method"] != "actmad":
+            raise ValueError("test_time_training supports only method: actmad")
+        ssl_cfg = SSLConfig(backbone=model_cfg.get("backbone", "resnet18"))
         simclr = SimCLRModel(ssl_cfg)
-        ckpt = cfg["model"].get("checkpoint")
+        ckpt = model_cfg.get("checkpoint")
         ckpt_path = project_path(ckpt) if ckpt else None
-        clf_path = project_path(cfg["model"].get("classifier_path", "results/self_supervised/classifier.pt"))
-        source_stats_path = project_path(cfg["adaptation"]["source_stats_path"])
+        clf_path = project_path(model_cfg.get("classifier_path", "results/self_supervised/classifier.pt"))
+        source_stats_path = project_path(adaptation_cfg["source_stats_path"])
         artifact_paths = {
             "backbone": ckpt_path,
             "classifier": clf_path,
@@ -151,7 +195,7 @@ def main() -> None:
             simclr.backbone.load_state_dict(torch.load(ckpt_path, map_location=device))
             print(f"[TTT] Backbone loaded from {ckpt_path}")
 
-        clf = nn.Linear(simclr.feat_dim, cfg["model"]["num_classes"])
+        clf = nn.Linear(simclr.feat_dim, model_cfg["num_classes"])
         clf.load_state_dict(torch.load(clf_path, map_location=device))
         print(f"[TTT] Linear classifier loaded from {clf_path}")
 
@@ -159,19 +203,21 @@ def main() -> None:
 
         source_stats = torch.load(source_stats_path, map_location=device)
         ttt_cfg = TTTConfig(
-            lr=cfg["adaptation"]["lr"],
-            steps_per_batch=cfg["adaptation"]["steps_per_batch"],
-            adaptation_task=cfg["adaptation"]["method"],
+            lr=adaptation_cfg["lr"],
+            steps_per_batch=adaptation_cfg["steps_per_batch"],
+            adaptation_task=adaptation_cfg["method"],
         )
 
         adapter = TTTAdapter(model, ttt_cfg, source_stats)
 
         # evaluate one corruption
         loader = build_cifar10c_loader(
-            root=str(project_path(cfg["dataset"]["root"])),
-            corruption=cfg["dataset"]["corruption"],
-            severity=cfg["dataset"]["severity"],
-            batch_size=cfg["dataset"]["batch_size"],
+            root=str(project_path(dataset_cfg["root"])),
+            corruption=dataset_cfg["corruption"],
+            severity=dataset_cfg["severity"],
+            batch_size=dataset_cfg["batch_size"],
+            num_workers=dataset_cfg.get("num_workers", 2),
+            max_samples=dataset_cfg.get("max_samples"),
         )
 
         print("\n--- Baseline (without TTT) ---")

@@ -1,4 +1,3 @@
-experiment_name: ssl_pretrain_baseline
 seed: 42
 
 dataset:
@@ -8,7 +7,7 @@ dataset:
 
 model:
   backbone: resnet18
-  embedding_dim: 128
+  projection_dim: 128
 
 training:
   method: simclr
@@ -19,10 +18,8 @@ training:
 source_stats:
   compute: true
   save_path: results/self_supervised/source_stats.pt
-  loader: val
 
 logging:
-  output_dir: results/self_supervised
   classifier_path: results/self_supervised/classifier.pt
   save_backbone: true
   backbone_path: results/self_supervised/simclr_backbone.pt

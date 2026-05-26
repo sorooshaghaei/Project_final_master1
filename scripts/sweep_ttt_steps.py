@@ -1,4 +1,3 @@
-"""run a small sweep over ttt adaptation steps."""
 from __future__ import annotations
 
 import argparse
@@ -72,8 +71,6 @@ def main() -> int:
 
     adaptation_cfg = cfg["adaptation"]
     adaptation_lr = adaptation_cfg["lr"]
-    use_safe_ttt = adaptation_cfg.get("use_safe_ttt", False)
-    max_allowed_confidence_drop = adaptation_cfg.get("max_allowed_confidence_drop", 0.05)
     rows = []
 
     for steps_per_batch in SWEEP_STEPS:
@@ -95,16 +92,10 @@ def main() -> int:
                 severity=severity,
                 batch_size=batch_size,
                 num_workers=dataset_cfg.get("num_workers", 0),
+                max_samples=dataset_cfg.get("max_samples"),
             )
             baseline = evaluate_ttt(adapter, loader, device, use_ttt=False)
-            ttt = evaluate_ttt(
-                adapter,
-                loader,
-                device,
-                use_ttt=True,
-                use_safe_ttt=use_safe_ttt,
-                max_allowed_confidence_drop=max_allowed_confidence_drop,
-            )
+            ttt = evaluate_ttt(adapter, loader, device, use_ttt=True)
             gain = ttt["accuracy"] - baseline["accuracy"]
             rows.append(
                 {
@@ -114,8 +105,6 @@ def main() -> int:
                     "baseline_accuracy": baseline["accuracy"],
                     "ttt_accuracy": ttt["accuracy"],
                     "gain": gain,
-                    "safe_ttt_rejected_batches": ttt["safe_ttt_rejected_batches"],
-                    "safe_ttt_total_batches": ttt["safe_ttt_total_batches"],
                 }
             )
             sign = "+" if gain >= 0 else ""
@@ -133,8 +122,6 @@ def main() -> int:
         "baseline_accuracy",
         "ttt_accuracy",
         "gain",
-        "safe_ttt_rejected_batches",
-        "safe_ttt_total_batches",
     ]
     with output_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
