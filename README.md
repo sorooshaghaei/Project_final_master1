@@ -76,7 +76,7 @@ python run.py --task ttt --config configs/test_time_training.yaml
 Run the all-corruption CIFAR-10-C evaluation from the `scripts` directory:
 
 ```bash
-cd /Users/sorooshaghaei/Desktop/Paris_cite_projects/Project_final_master1/scripts
+cd scripts
 python eval_corruption.py
 ```
 
@@ -89,7 +89,9 @@ results/test_time_training/corruption_eval.csv
 Run the adaptation-step sweep with:
 
 ```bash
-python sweep_ttt_steps.py
+cd Project_final_master1
+python scripts/eval_corruption.py
+python scripts/sweep_ttt_steps.py
 ```
 
 This evaluates `steps_per_batch` values 3, 5, and 10 on the configured `shot_noise` setting and saves:
