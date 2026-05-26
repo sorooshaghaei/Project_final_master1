@@ -5,10 +5,10 @@ Self-supervised run:
 - config: configs/self_supervised.yaml
 - device: mps
 - current config epochs: 200
-- recorded run epochs: 100
-- epoch 1 loss: 5.6214
-- epoch 100 loss: 4.6586
-- linear evaluation accuracy: 67.05%
+- recorded run epochs: 200
+- epoch 1 loss: 5.8654
+- epoch 200 loss: 4.5078
+- linear evaluation accuracy: 84.23%
 - saved classifier: results/self_supervised/classifier.pt
 - saved backbone: results/self_supervised/simclr_backbone.pt
 - saved source stats: results/self_supervised/source_stats.pt

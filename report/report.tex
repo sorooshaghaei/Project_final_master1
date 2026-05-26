@@ -176,7 +176,7 @@ The project does not try to design a new backbone architecture. The backbone is 
 
 The adaptation strategy implemented in the project is ActMAD-style activation matching \citep{mirza2023actmad}. The model first records activation statistics on clean source data. At test time, it receives a corrupted batch and updates a limited subset of parameters so that the target activations become closer to the source activations. The current implementation adapts normalization parameters and keeps the rest of the model frozen. The classification head is then applied after this short adaptation.
 
-The self-supervised configuration schedules SimCLR training for 200 epochs. In the training log, the linear evaluation accuracy reached 67.05\%. On CIFAR-10-C severity 5, the final all-corruption evaluation improved the mean accuracy from 54.82\% without adaptation to 70.22\% after ActMAD TTT. This corresponds to an average gain of 15.40 percentage points. TTT helped on 14 of the 15 corruptions and hurt only on brightness.
+The self-supervised configuration schedules SimCLR training for 200 epochs. In the training log, the linear evaluation accuracy reached 84.23\%. On CIFAR-10-C severity 5, the final all-corruption evaluation improved the mean accuracy from 54.82\% without adaptation to 70.22\% after ActMAD TTT. This corresponds to an average gain of 15.40 percentage points. TTT helped on 14 of the 15 corruptions and hurt only on brightness.
 
 % =================================================
 \section{Scientific Background and Related Work}
@@ -222,7 +222,7 @@ This loss is not a classification loss. It does not know the CIFAR-10 class name
 
 Linear evaluation is a practical check of representation quality. After SimCLR pretraining, the backbone is frozen. A linear classifier is trained on top of the features using class labels. A high linear evaluation accuracy means that the frozen representation already separates classes well enough for a simple head. A low linear evaluation accuracy means that the representation is weak or not aligned with the classification task.
 
-This matters for TTT. Test-time adaptation cannot fully repair a poor representation. If the backbone does not extract useful features before adaptation, then matching activation statistics may not be enough. The recorded run reached 67.05\% linear evaluation accuracy. This is useful evidence that the encoder learned class-relevant features, but it is still below what a strong fully supervised CIFAR-10 model would usually obtain.
+This matters for TTT. Test-time adaptation cannot fully repair a poor representation. If the backbone does not extract useful features before adaptation, then matching activation statistics may not be enough. The recorded run reached 84.23\% linear evaluation accuracy. This is useful evidence that the encoder learned class-relevant features, but it is still below what a strong fully supervised CIFAR-10 model would usually obtain.
 
 \subsection{Test-Time Training and test-time adaptation}
 
@@ -294,7 +294,7 @@ The backbone checkpoint used for TTT is saved as:
 results/self_supervised/simclr_backbone.pt
 \end{lstlisting}
 
-Linear evaluation is not the final project goal, but it gives an important diagnostic. The final value is 67.05\%. This means the self-supervised representation contains useful class information. It also shows that the representation is not extremely strong. The later TTT result should be read with that limitation in mind.
+Linear evaluation is not the final project goal, but it gives an important diagnostic. The final value is 84.23\%. This means the self-supervised representation contains useful class information. It is still below strong fully supervised CIFAR-10 baselines, so the later TTT result should be read with that limitation in mind.
 
 \subsection{Source activation statistics}
 
@@ -445,11 +445,11 @@ The alias is:
 \begin{lstlisting}
 python run.py --task ssl --config configs/self_supervised.yaml
 \end{lstlisting}
-The loss log was printed once per epoch. It starts at 5.6214 and reaches 4.6586 at epoch 100. The configuration file requests 200 epochs, but the run has not finished yet. in epoch 9/200 the loss is 5.0647. yet to be completed...
+The loss log was printed once per epoch. It starts at 5.8654 and reaches 4.5078 at epoch 200. The 200-epoch run completed successfully.
 
 \subsection{Linear evaluation}
 
-After SimCLR pretraining, \texttt{run.py} calls the linear evaluation step. The backbone is frozen and a linear classifier is trained on top of the learned features. The classifier is then evaluated on CIFAR-10. The recorded linear evaluation accuracy was 67.05\%.
+After SimCLR pretraining, \texttt{run.py} calls the linear evaluation step. The backbone is frozen and a linear classifier is trained on top of the learned features. The classifier is then evaluated on CIFAR-10. The recorded linear evaluation accuracy was 84.23\%.
 
 This result shows that the representation learned class-relevant features. It also leaves room for improvement. A stronger supervised CIFAR-10 model would normally be expected to achieve substantially higher accuracy, so the robustness result should be interpreted together with the quality of the encoder.
 
@@ -509,10 +509,10 @@ The main numbers are summarized in Table~\ref{tab:final-summary}. The SSL values
 Experiment & Value\\
 \midrule
 Current self-supervised config epochs & 200\\
-Recorded loss log epochs & 100\\
-Initial SimCLR loss & 5.6214\\
-Final SimCLR loss & 4.6586\\
-Linear evaluation accuracy & 67.05\%\\
+Recorded loss log epochs & 200\\
+Initial SimCLR loss & 5.8654\\
+Final SimCLR loss & 4.5078\\
+Linear evaluation accuracy & 84.23\%\\
 All-corruption evaluation & 15 corruptions, severity 5\\
 Mean baseline accuracy & 54.82\%\\
 Mean ActMAD TTT accuracy & 70.22\%\\
@@ -579,25 +579,25 @@ The sweep shows a clear trend in this setting: more adaptation steps improve the
 
 \subsection{Training loss evolution}
 
-The saved SimCLR loss log decreased from 5.6214 at epoch 1 to 4.6586 at epoch 100. The curve in Figure~\ref{fig:training-loss} is built from the 100 losses printed in the available terminal log. The configuration requests 200 epochs, but the complete 200-epoch loss log has not yet completed...
+The 200-epoch curve in Figure~\ref{fig:training-loss} summarizes the loss trajectory from 5.8654 to 4.5078; the largest drop occurs early, and the curve flattens after roughly epoch 70.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.78\textwidth]{final_training_loss.pdf}
-\caption{SimCLR training loss over the recorded 100-epoch run.}
+\caption{SimCLR training loss over the recorded 200-epoch run.}
 \label{fig:training-loss}
 \end{figure}
 
-The decrease is strongest during the first epochs. After roughly epoch 70, the loss changes more slowly and oscillates around a lower value. This does not prove that the representation is optimal, but it shows that the contrastive objective was being optimized during the recorded run.
+
 
 \begin{table}[H]
 \centering
 \caption{Selected SimCLR loss values from the available training log.}
 \begin{tabular}{rrrrrrrr}
 \toprule
-Epoch & 1 & 10 & 25 & 50 & 75 & 90 & 100\\
+Epoch & 1 & 10 & 25 & 50 & 100 & 150 & 200\\
 \midrule
-Loss & 5.6214 & 4.9697 & 4.8217 & 4.7216 & 4.6768 & 4.6637 & 4.6586\\
+Loss & 5.8654 & 4.9367 & 4.7255 & 4.6238 & 4.5548 & 4.5340 & 4.5078\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -667,7 +667,7 @@ data/raw/cifar10c/CIFAR-10-C/
 \end{lstlisting}
 The reported average robustness numbers can be checked directly from the results directory.
 
-The terminal warnings observed during the provided run are not central to the scientific method. The MPS warning says that \texttt{pin\_memory=True} is not supported on MPS, so pinned memory is not used. This can be cleaned by setting \texttt{pin\_memory=False} when the device is MPS. The NumPy deprecation warning comes from dataset loading and does not change the reported accuracy values, but a stable dependency combination is safer for repeated experiments.
+The terminal warning observed during the provided run is not central to the scientific method. The MPS warning says that \texttt{pin\_memory=True} is not supported on MPS, so pinned memory is not used. This can be cleaned by setting \texttt{pin\_memory=False} when the device is MPS.
 
 % =================================================
 \section{Final Remarks and Future Work}

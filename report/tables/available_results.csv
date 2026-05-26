@@ -1,9 +1,9 @@
 experiment,value
 current_config_self_supervised_epochs,200
-recorded_self_supervised_epochs,100
-initial_simclr_loss,5.6214
-final_simclr_loss,4.6586
-linear_evaluation_accuracy_percent,67.05
+recorded_self_supervised_epochs,200
+initial_simclr_loss,5.8654
+final_simclr_loss,4.5078
+linear_evaluation_accuracy_percent,84.23
 configured_ttt_corruption,shot_noise
 configured_ttt_severity,5
 configured_ttt_baseline_accuracy_percent,33.02
