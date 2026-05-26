@@ -95,7 +95,7 @@ data/processed/*
 #################################
 # macOS Office temp files
 report/~$*
-# LaTeX (si jamais tu utilises)
+# LaTeX build files
 report/**/*.aux
 report/**/*.bbl
 report/**/*.blg

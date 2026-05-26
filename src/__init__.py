@@ -1,1 +1,1 @@
-"""Core package for TER experiments."""
+"""core package for ter experiments."""

@@ -1,0 +1,28 @@
+experiment_name: smoke_ttt_5min
+seed: 42
+
+dataset:
+  name: cifar10c
+  root: data/raw/cifar10c
+  download: false
+  corruption: shot_noise
+  severity: 5
+  batch_size: 32
+  num_workers: 0
+  max_samples: 64
+
+model:
+  backbone: resnet18
+  num_classes: 10
+  checkpoint: results/smoke/self_supervised/simclr_backbone.pt
+  classifier_path: results/smoke/self_supervised/classifier.pt
+
+adaptation:
+  method: actmad
+  self_supervised_task: actmad
+  steps_per_batch: 1
+  lr: 0.0001
+  source_stats_path: results/smoke/self_supervised/source_stats.pt
+
+logging:
+  output_dir: results/smoke/test_time_training
