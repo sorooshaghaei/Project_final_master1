@@ -1,5 +1,4 @@
-"""dataset registry for ttt and ssl pipelines."""
-# dataset registry and loaders for ttt and ssl
+# dataset and loaders for ttt and ssl
 from __future__ import annotations
 
 from typing import Any
@@ -12,7 +11,6 @@ from torch.utils.data import DataLoader, Dataset
 from pathlib import Path
 
 try:
-    # optional torchvision import
     from torchvision import datasets, transforms
     from torchvision.transforms import functional as TF
 
@@ -43,7 +41,6 @@ class RotationShiftConfig:
 
 # dataset wrapper that rotates each sample to simulate distribution shift
 class RotationShiftDataset(Dataset):
-    """rotate samples to simulate test shift."""
     def __init__(self, base: Dataset, config: RotationShiftConfig):
         if not _TORCHVISION_AVAILABLE:
             raise ImportError("torchvision is required for RotationShiftDataset.")
@@ -77,7 +74,6 @@ class RotationShiftDataset(Dataset):
 
 
 def get_dataset_spec(name: str) -> DatasetSpec:
-    """return metadata for a dataset name."""
     # return dataset metadata
     registry = {
         # cifar-10 is stored under data/raw
@@ -91,14 +87,12 @@ def get_dataset_spec(name: str) -> DatasetSpec:
 
 
 def _require_torchvision() -> None:
-    """check that torchvision is installed."""
     # guard for optional torchvision dependency
     if not _TORCHVISION_AVAILABLE:
         raise ImportError("torchvision is required to build CIFAR-10 datasets.")
 
 
 def build_cifar10_transforms(train: bool) ->Any:
-    """build cifar-10 transforms."""
     # standard cifar-10 normalization
     _require_torchvision()
     mean = (0.4914, 0.4822, 0.4465)
@@ -123,7 +117,6 @@ def build_cifar10_transforms(train: bool) ->Any:
     )
 # two augmented views for ssl
 class TwoViewsTransform:
-    """return two augmented views of one image."""
     def __init__(self):
         _require_torchvision()
         self.t = transforms.Compose([
@@ -139,7 +132,6 @@ class TwoViewsTransform:
         return self.t(x), self.t(x)
     
 def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, download: bool = False,) -> DataLoader:
-    """build the simclr pretraining loader."""
     _require_torchvision()
     dataset = datasets.CIFAR10(
         root=root,
@@ -158,7 +150,6 @@ def build_simclr_loader(root:str, batch_size: int = 128, num_workers: int = 2, d
 
 def rotation_shift_from_config(config: Optional[dict]) -> RotationShiftConfig:
     # build rotation settings or disable them
-    """build rotation shift settings from config."""
     if not config:
         return RotationShiftConfig(enabled=False)
 
@@ -176,7 +167,6 @@ def build_cifar10_datasets(
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[Dataset, Dataset]:
-    """build cifar-10 train and test datasets."""
     # add optional rotation shift on test data
     _require_torchvision()
     # training data uses standard augmentations
@@ -208,7 +198,6 @@ def build_cifar10_loaders(
     download: bool = False,
     rotation_shift: Optional[RotationShiftConfig] = None,
 ) -> Tuple[DataLoader, DataLoader]:
-    """build cifar-10 train and test loaders."""
     # build train and test datasets first
     train_dataset, test_dataset = build_cifar10_datasets(
         root=root,
@@ -257,7 +246,102 @@ CIFAR10C_CORRUPTIONS = [
     "jpeg_compression",
 ]
 
-def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size: int = 1, num_workers: int = 2) -> DataLoader:
+
+def missing_cifar10c_files(root: str | Path, corruptions: Sequence[str]) -> list[Path]:
+    cifar10c_root = Path(root) / "CIFAR-10-C"
+    expected = [cifar10c_root / "labels.npy"]
+    expected.extend(cifar10c_root / f"{corruption}.npy" for corruption in corruptions)
+    return [path for path in expected if not path.exists()]
+
+
+def _fallback_cifar10_root(root: Path) -> Path:
+    candidates = [root, root.parent, root.parent.parent]
+    for candidate in candidates:
+        if (candidate / "cifar-10-batches-py").exists():
+            return candidate
+    return root
+
+
+def _apply_synthetic_corruption(
+    x: torch.Tensor,
+    corruption: str,
+    severity: int,
+    generator: torch.Generator,
+) -> torch.Tensor:
+    amount = severity / 5.0
+
+    if corruption == "gaussian_noise":
+        x = x + torch.randn(x.shape, generator=generator) * (0.04 + 0.14 * amount)
+    elif corruption == "shot_noise":
+        noise = torch.randn(x.shape, generator=generator) * torch.sqrt(x.clamp(0, 1) + 0.01)
+        x = x + noise * (0.03 + 0.10 * amount)
+    elif corruption == "impulse_noise":
+        mask = torch.rand((1, *x.shape[1:]), generator=generator) < (0.01 + 0.05 * amount)
+        salt = (torch.rand((1, *x.shape[1:]), generator=generator) > 0.5).float()
+        x = torch.where(mask.expand_as(x), salt.expand_as(x), x)
+    elif corruption in {"defocus_blur", "glass_blur", "motion_blur", "zoom_blur"}:
+        kernel_size = 3 if severity <= 3 else 5
+        sigma = 0.4 + 1.2 * amount
+        x = TF.gaussian_blur(x, kernel_size=[kernel_size, kernel_size], sigma=[sigma, sigma])
+        if corruption == "glass_blur":
+            x = x + torch.randn(x.shape, generator=generator) * 0.02 * amount
+    elif corruption == "snow":
+        snow = torch.rand(x.shape, generator=generator) * (0.15 + 0.25 * amount)
+        x = x * (1.0 - 0.15 * amount) + snow
+    elif corruption in {"frost", "fog"}:
+        haze = torch.full_like(x, 0.65 if corruption == "fog" else 0.8)
+        x = x * (1.0 - 0.20 * amount) + haze * (0.20 * amount)
+    elif corruption == "brightness":
+        x = TF.adjust_brightness(x, 1.0 + 0.20 * severity)
+    elif corruption == "contrast":
+        x = TF.adjust_contrast(x, max(0.15, 1.0 - 0.15 * severity))
+    elif corruption == "elastic_transform":
+        x = x + torch.randn(x.shape, generator=generator) * 0.03 * amount
+    elif corruption == "pixelate":
+        small_size = max(4, 32 // (severity + 1))
+        x = TF.resize(x, [small_size, small_size], interpolation=transforms.InterpolationMode.NEAREST)
+        x = TF.resize(x, [32, 32], interpolation=transforms.InterpolationMode.NEAREST)
+    elif corruption == "jpeg_compression":
+        levels = max(8, 64 - 10 * severity)
+        x = torch.round(x * levels) / levels
+
+    return x.clamp(0.0, 1.0)
+
+
+def _build_synthetic_cifar10c_loader(
+    root: str | Path,
+    corruption: str,
+    severity: int,
+    batch_size: int,
+    num_workers: int,
+) -> DataLoader:
+    _require_torchvision()
+    cifar_root = _fallback_cifar10_root(Path(root))
+    dataset = datasets.CIFAR10(root=str(cifar_root), train=False, download=False)
+    generator = torch.Generator().manual_seed(10_000 + severity * 101 + CIFAR10C_CORRUPTIONS.index(corruption))
+    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(3, 1, 1)
+    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(3, 1, 1)
+
+    images = []
+    labels = []
+    for image, label in dataset:
+        x = TF.to_tensor(image)
+        x = _apply_synthetic_corruption(x, corruption, severity, generator)
+        images.append((x - mean) / std)
+        labels.append(label)
+
+    tensor_dataset = TensorDataset(torch.stack(images), torch.tensor(labels, dtype=torch.long))
+    return DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+
+
+def build_cifar10c_loader(
+    root: str,
+    corruption: str,
+    severity: int,
+    batch_size: int = 1,
+    num_workers: int = 2,
+    allow_synthetic_fallback: bool = False,
+) -> DataLoader:
     """load one cifar-10-c corruption and severity."""
     if corruption not in CIFAR10C_CORRUPTIONS:
         raise ValueError(f"Corruption inconnue: {corruption}")
@@ -269,6 +353,8 @@ def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size:
     labels_path = Path(root) / "CIFAR-10-C" / "labels.npy"
     missing = [path for path in (data_path, labels_path) if not path.exists()]
     if missing:
+        if allow_synthetic_fallback:
+            return _build_synthetic_cifar10c_loader(root, corruption, severity, batch_size, num_workers)
         missing_text = "\n".join(f"- {path}" for path in missing)
         raise FileNotFoundError(
             "CIFAR-10-C files are missing.\n"

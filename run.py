@@ -1,5 +1,6 @@
 # unified entry point for TER experiments
 import argparse
+import random
 import yaml
 import torch
 import torch.nn as nn
@@ -14,6 +15,27 @@ def project_path(path: str | Path) -> Path:
     if path.is_absolute():
         return path
     return PROJECT_ROOT / path
+
+
+def get_device() -> str:
+    if torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    try:
+        import numpy as np
+
+        np.random.seed(seed)
+    except ImportError:
+        pass
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def config_path_from_arg(path_arg: str) -> Path:
@@ -61,7 +83,7 @@ def main() -> None:
     elif task == "ssl": task = "self_supervised"
 
     cfg = yaml.safe_load(config_path.read_text())
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    device = get_device()
     print(f"[TASK] {task} | [DEVICE] {device}")
 
     # SSL pretraining 
@@ -167,7 +189,7 @@ def main() -> None:
         print("\n--- ActMAD TTT ---")
         res_ttt = evaluate_ttt(adapter, loader, device, use_ttt=True)
         print(f"Accuracy TTT: {res_ttt['accuracy']*100:.2f}%")
-        print(f"Amélioration: {(res_ttt['accuracy'] - res_base['accuracy'])*100:.2f}%")
+        print(f"Improvement: {(res_ttt['accuracy'] - res_base['accuracy'])*100:.2f}%")
 
 if __name__ == "__main__":
     main()

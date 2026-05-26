@@ -17,6 +17,9 @@ Configured TTT run:
 - task: test_time_training
 - config: configs/test_time_training.yaml
 - device: mps
-- baseline accuracy: 48.34%
-- ActMAD TTT accuracy: 55.78%
-- improvement: +7.44 percentage points
+- result source: results/test_time_training/results.csv
+- corruption: shot_noise
+- severity: 5
+- baseline accuracy: 33.02% (3302/10000)
+- ActMAD TTT accuracy: 69.12% (6912/10000)
+- improvement: +36.10 percentage points

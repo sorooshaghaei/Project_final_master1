@@ -4,7 +4,11 @@ recorded_self_supervised_epochs,100
 initial_simclr_loss,5.6214
 final_simclr_loss,4.6586
 linear_evaluation_accuracy_percent,67.05
-configured_ttt_baseline_accuracy_percent,48.34
-configured_ttt_actmad_accuracy_percent,55.78
-configured_ttt_improvement_percentage_points,7.44
-
+configured_ttt_corruption,shot_noise
+configured_ttt_severity,5
+configured_ttt_baseline_accuracy_percent,33.02
+configured_ttt_actmad_accuracy_percent,69.12
+configured_ttt_improvement_percentage_points,36.10
+configured_ttt_baseline_correct,3302
+configured_ttt_actmad_correct,6912
+configured_ttt_total,10000

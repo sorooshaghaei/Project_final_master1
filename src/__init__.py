@@ -1,1 +1,1 @@
-"""core package for ter experiments."""
+# main experiment package

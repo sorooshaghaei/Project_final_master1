@@ -1,4 +1,4 @@
-# base interface for ttt methods
+# ttt methods
 import torch 
 import torch.nn as nn
 import copy
@@ -15,7 +15,6 @@ class TTTConfig:
 
 # activation hooks
 class ActivationStats:
-    """store layer activations during ttt."""
     def __init__(self):
         self.hooks = []
         self.activations = {}
@@ -40,7 +39,6 @@ class ActivationStats:
         self.hooks.clear()
 
 def _bn_layer_names(model) -> list:
-    """return all bn and ln layer names."""
     return [ 
         name for name, m in model.named_modules()
         if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm, nn.BatchNorm1d))
@@ -48,7 +46,6 @@ def _bn_layer_names(model) -> list:
 
 # source stats for actmad
 def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
-    """save source activation means and stds."""
     hook = ActivationStats()
     names = _bn_layer_names(model)
     hook.register(model, names)
@@ -76,12 +73,11 @@ def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
     }
     hook.remove()
     torch.save(stats, save_path)
-    print(f"[ActMAD] Source stats saved to {save_path}")
+    print(f"---- [ActMAD] Source stats saved to {save_path} ----")
     return stats
 
 # actmad adaptation loss
 def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
-    """match target activations to source stats."""
     loss = torch.zeros(1, device=next(iter(hook.activations.values())).device, requires_grad=True). squeeze()
     count = 0
     for name, act in hook.activations.items():
@@ -103,8 +99,7 @@ def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
 
 
 class TTTAdapter:
-    # small ttt adapter
-    """adapt a copied model on each target batch."""
+    #  ttt adapter
     def __init__(self, model, config: TTTConfig, source_stats: dict):
         # keep adaptation settings
         self.config = config

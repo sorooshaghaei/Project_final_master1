@@ -1,4 +1,3 @@
-"""run a small sweep over ttt adaptation steps."""
 from __future__ import annotations
 
 import argparse

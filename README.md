@@ -1,5 +1,5 @@
 # Project_final_master1
-TER M1 project focused on Test-Time Training and Self-Supervised Learning.
+TER M1 project Test-Time Training and Self-Supervised Learning
 
 ## Authors
 Rayane KHATIM, Mehdi AGHAEI  
@@ -14,11 +14,13 @@ Project_final_master1/
 ├── papers/
 │   ├── 1_sun20.pdf
 │   ├── 3_When_test_time_Adaptation.pdf
+│   ├── 2_NeurIPS-2021-ttt-when-does-self-supervised-test-time-training-fail-or-thrive-Paper.pdf
+│   ├── 4_ActMAD_Activation_Matching_to_Align_Distributions_for_Test-Time-Training.pdf
 │   └── TER2.pdf
-├── docs/
-│   └── project_tracking.md
 ├── notebooks/
 │   ├── basicUnderstanding.ipynb
+│   ├── choose_2_paper_for_TER.ipynb
+│   ├── Test_Time_Training.pdf
 │   └── choose_paper_for_TER.ipynb
 ├── src/
 │   ├── __init__.py
@@ -32,12 +34,10 @@ Project_final_master1/
 │   ├── smoke_self_supervised.yml
 │   └── smoke_test_time_training.yml
 └── data/
-    ├── raw/
-    ├── interim/
-    └── processed/
+    └── raw/
 ```
 
-## What Each Part Means
+## pipeline
 - `papers/`:TER PDFs and reference papers
 - `notebooks/`: exploration notebooks and paper-choice notebook
 - `src/test_time_training.py`: test-time adaptation 
@@ -52,7 +52,7 @@ Project_final_master1/
 
 ## Run
 
-The main self-supervised configuration is `configs/self_supervised.yaml`. It now trains SimCLR for **200 epochs** with batch size `256` and learning rate `0.03`.
+The main self-supervised configuration is `configs/self_supervised.yaml`. It trains SimCLR for **200 epochs** with batch size `256` and learning rate `0.03`.
 
 ```bash
 cd Project_final_master1

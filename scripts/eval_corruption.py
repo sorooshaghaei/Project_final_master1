@@ -2,26 +2,40 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 import sys
-sys.path.append(".") # import local modules
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from run import get_device, project_path, require_ttt_artifacts
 from src.self_supervised import SimCLRModel, SSLConfig
 from src.test_time_training import TTTAdapter, TTTConfig
 from src.datasets import build_cifar10c_loader
 from src.metrics import evaluate_ttt
 
 if __name__ == "__main__":
-    device = "mps" if torch.backends.mps.is_available() else "cpu" # use mps when available
+    device = get_device()
 
-    # load the pretrained model and classifier
+    # Load the pretrained model and classifier
+    backbone_path = project_path("results/self_supervised/simclr_backbone.pt")
+    clf_path = project_path("results/self_supervised/classifier.pt")
+    source_stats_path = project_path("results/self_supervised/source_stats.pt")
+    require_ttt_artifacts(
+        {
+            "backbone": backbone_path,
+            "classifier": clf_path,
+            "source stats": source_stats_path,
+        }
+    )
+
     ssl_cfg = SSLConfig()
     simclr = SimCLRModel(ssl_cfg)
-    simclr.backbone.load_state_dict(torch.load("results/self_supervised/simclr_backbone.pt", map_location=device))
+    simclr.backbone.load_state_dict(torch.load(backbone_path, map_location=device))
     clf = nn.Linear(simclr.feat_dim, 10)
-    clf.load_state_dict(torch.load("results/self_supervised/classifier.pt", map_location=device))
+    clf.load_state_dict(torch.load(clf_path, map_location=device))
     model = nn.Sequential(simclr.backbone, clf).to(device)
 
     # load source stats for actmad
-    source_stats = torch.load("results/self_supervised/source_stats.pt", map_location=device)
+    source_stats = torch.load(source_stats_path, map_location=device)
     # set up ttt adaptation
     ttt_cfg = TTTConfig(lr=1e-4, steps_per_batch=10)
     adapter = TTTAdapter(model, ttt_cfg, source_stats)
@@ -41,7 +55,7 @@ if __name__ == "__main__":
     # evaluate each corruption
     for corruption in CORRUPTIONS:
         loader = build_cifar10c_loader(
-            root="data/raw/cifar10c",
+            root=str(project_path("data/raw/cifar10c")),
             corruption=corruption,
             severity=SEVERITY,
             batch_size=16,
