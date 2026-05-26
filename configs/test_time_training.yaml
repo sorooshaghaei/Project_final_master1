@@ -19,6 +19,7 @@ model:
   backbone: resnet18
   num_classes: 10
   checkpoint: results/self_supervised/simclr_backbone.pt
+  classifier_path: results/self_supervised/classifier.pt
 
 adaptation:
   method: actmad

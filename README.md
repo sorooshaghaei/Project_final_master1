@@ -60,6 +60,7 @@ Run `self_supervised` first. It creates the files expected by TTT:
 `results/self_supervised/simclr_backbone.pt`,
 `results/self_supervised/classifier.pt`, and
 `results/self_supervised/source_stats.pt`.
+The TTT config reads the classifier from `model.classifier_path`.
 
 Short aliases are also accepted:
 ```bash

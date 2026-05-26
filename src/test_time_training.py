@@ -46,11 +46,31 @@ def _bn_layer_names(model) -> list:
         if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm, nn.BatchNorm1d))
     ]
 
+def _layer_name_candidates(name: str) -> list[str]:
+    """return likely names for wrapped modules."""
+    prefixes = ("0.", "backbone.", "model.", "module.")
+    candidates = [name]
+    for prefix in prefixes:
+        candidates.append(f"{prefix}{name}")
+        if name.startswith(prefix):
+            candidates.append(name[len(prefix):])
+
+    seen = set()
+    return [candidate for candidate in candidates if not (candidate in seen or seen.add(candidate))]
+
+def _source_stats_for_layer(name: str, source_stats: dict):
+    for candidate in _layer_name_candidates(name):
+        if candidate in source_stats:
+            return source_stats[candidate]
+    return None
+
 # source stats for actmad
 def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
     """save source activation means and stds."""
     hook = ActivationStats()
     names = _bn_layer_names(model)
+    if not names:
+        raise RuntimeError("no bn or ln layers found for source stats")
     hook.register(model, names)
     model.eval()
     accum = {}
@@ -82,23 +102,38 @@ def compute_source_stats(model, loader, device, save_path="source_stats.pt"):
 # actmad adaptation loss
 def actmad_loss(hook: ActivationStats, source_stats: dict) -> torch.Tensor:
     """match target activations to source stats."""
-    loss = torch.zeros(1, device=next(iter(hook.activations.values())).device, requires_grad=True). squeeze()
+    if not hook.activations:
+        raise RuntimeError("actmad needs hooked activations")
+
+    device = next(iter(hook.activations.values())).device
+    loss = torch.zeros((), device=device)
     count = 0
     for name, act in hook.activations.items():
-        if name not in source_stats:
+        stats = _source_stats_for_layer(name, source_stats)
+        if stats is None:
             continue
-        mu_src, sig_src = source_stats[name]
+        mu_src, sig_src = stats
         mu_src = mu_src.to(act.device)
         sig_src = sig_src.to(act.device)
 
         dims = [i for i in range(act.ndim) if i != 1]
         mu_tst = act.mean(dim=dims)
         sig_tst = act.std(dim=dims, unbiased=False) + 1e-6
+        if mu_src.shape != mu_tst.shape or sig_src.shape != sig_tst.shape:
+            raise RuntimeError(f"actmad source stats shape mismatch for layer {name}")
 
         loss = loss + (mu_tst - mu_src).pow(2).mean()
         loss = loss + (sig_tst - sig_src).pow(2).mean()
         count += 1
-    return loss / max(count, 1)
+    if count == 0:
+        target_names = ", ".join(list(hook.activations.keys())[:5])
+        source_names = ", ".join(list(source_stats.keys())[:5])
+        raise RuntimeError(
+            "actmad source stats do not match target layers. "
+            f"target layers include: {target_names}. "
+            f"source stats include: {source_names}."
+        )
+    return loss / count
 
 
 

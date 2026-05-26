@@ -257,6 +257,13 @@ CIFAR10C_CORRUPTIONS = [
     "jpeg_compression",
 ]
 
+def missing_cifar10c_files(root: str | Path, corruptions: Sequence[str]) -> list[Path]:
+    """return missing cifar-10-c files for corruptions."""
+    data_root = Path(root) / "CIFAR-10-C"
+    expected = [data_root / "labels.npy"]
+    expected.extend(data_root / f"{corruption}.npy" for corruption in corruptions)
+    return [path for path in expected if not path.exists()]
+
 def build_cifar10c_loader(root: str, corruption: str, severity: int, batch_size: int = 1, num_workers: int = 2) -> DataLoader:
     """load one cifar-10-c corruption and severity."""
     if corruption not in CIFAR10C_CORRUPTIONS:

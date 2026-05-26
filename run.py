@@ -1,6 +1,8 @@
 # unified entry point for ter experiments
 import argparse
+import random
 import yaml
+import numpy as np
 import torch
 import torch.nn as nn
 from pathlib import Path
@@ -41,6 +43,18 @@ def require_ttt_artifacts(paths: dict[str, Path]) -> None:
         "python run.py --task self_supervised --config configs/self_supervised.yaml"
     )
 
+def get_device() -> str:
+    if torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
 
 def main() -> None:
     # parse cli arguments
@@ -61,7 +75,7 @@ def main() -> None:
     elif task == "ssl": task = "self_supervised"
 
     cfg = yaml.safe_load(config_path.read_text())
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    device = get_device()
     print(f"[TASK] {task} | [DEVICE] {device}")
 
     # ssl pretraining
@@ -92,14 +106,14 @@ def main() -> None:
 
         trainer.pretrain(simclr_loader) # train with two augmented views
         clf, _ = trainer.linear_eval(train_loader, val_loader) # train the linear head
-        clf_path = project_path("results/self_supervised/classifier.pt")
+        log_cfg = cfg.get("logging", {})
+        clf_path = project_path(log_cfg.get("classifier_path", "results/self_supervised/classifier.pt"))
         clf_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(clf.state_dict(), clf_path)
         print(f"[SSL] Linear classifier saved to {clf_path}")
         
 
         # save ssl artifacts
-        log_cfg = cfg.get("logging", {})
         if log_cfg.get("save_backbone"):
             backbone_path = project_path(log_cfg["backbone_path"])
             backbone_path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,7 +138,7 @@ def main() -> None:
         simclr = SimCLRModel(ssl_cfg)
         ckpt = cfg["model"].get("checkpoint")
         ckpt_path = project_path(ckpt) if ckpt else None
-        clf_path = project_path("results/self_supervised/classifier.pt")
+        clf_path = project_path(cfg["model"].get("classifier_path", "results/self_supervised/classifier.pt"))
         source_stats_path = project_path(cfg["adaptation"]["source_stats_path"])
         artifact_paths = {
             "backbone": ckpt_path,

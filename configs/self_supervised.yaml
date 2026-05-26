@@ -23,5 +23,6 @@ source_stats:
 
 logging:
   output_dir: results/self_supervised
+  classifier_path: results/self_supervised/classifier.pt
   save_backbone: true
   backbone_path: results/self_supervised/simclr_backbone.pt

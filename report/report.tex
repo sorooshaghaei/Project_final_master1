@@ -305,7 +305,7 @@ The result is saved as:
 \begin{lstlisting}
 results/self_supervised/source_stats.pt
 \end{lstlisting}
-This file is required by the TTT stage. It represents the clean source-domain activation reference. During adaptation, the corrupted target batch is pushed toward these reference statistics.
+This file is required by the TTT stage. It represents the clean source-domain activation reference. During adaptation, the corrupted target batch is pushed toward these reference statistics. Source statistics are computed on the backbone, while TTT wraps the backbone and classifier in a sequential model. The implementation therefore matches layer names after removing wrapper prefixes such as \texttt{0.}. If no source layer matches a target activation, adaptation stops instead of optimizing an empty ActMAD loss.
 
 \subsection{ActMAD-style adaptation at test time}
 
@@ -369,7 +369,7 @@ Source statistics output & \texttt{results/self\_supervised/source\_stats.pt}\\
 \end{tabular}
 \end{table}
 
-The TTT configuration is \texttt{configs/test\_time\_training.yaml}. It loads the saved SimCLR backbone, classifier, and source statistics. It uses \texttt{shot\_noise} at severity 5, batch size 16, ten adaptation steps per batch, and learning rate \(10^{-4}\).
+The TTT configuration is \texttt{configs/test\_time\_training.yaml}. It loads the saved SimCLR backbone, classifier, and source statistics from explicit paths. It uses \texttt{shot\_noise} at severity 5, batch size 16, ten adaptation steps per batch, and learning rate \(10^{-4}\).
 
 \begin{table}[H]
 \centering
@@ -387,6 +387,7 @@ Resolved CIFAR-10-C directory & \texttt{data/raw/cifar10c/CIFAR-10-C/}\\
 Corruption in config & \texttt{shot\_noise}\\
 Severity & 5\\
 Batch size & 16\\
+Classifier path & \texttt{results/self\_supervised/classifier.pt}\\
 Adaptation method & ActMAD\\
 Steps per batch & 10\\
 Adaptation learning rate & 0.0001\\

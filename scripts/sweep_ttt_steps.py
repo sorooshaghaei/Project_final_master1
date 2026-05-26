@@ -39,7 +39,7 @@ def main() -> int:
     simclr = SimCLRModel(ssl_cfg)
 
     ckpt_path = project_path(cfg["model"]["checkpoint"])
-    clf_path = project_path("results/self_supervised/classifier.pt")
+    clf_path = project_path(cfg["model"].get("classifier_path", "results/self_supervised/classifier.pt"))
     source_stats_path = project_path(cfg["adaptation"]["source_stats_path"])
     require_ttt_artifacts(
         {
@@ -60,23 +60,15 @@ def main() -> int:
     severity = dataset_cfg["severity"]
     batch_size = dataset_cfg["batch_size"]
     data_root = project_path(dataset_cfg["root"])
-    allow_synthetic_fallback = dataset_cfg.get("allow_synthetic_fallback", True)
     missing_cifar10c = missing_cifar10c_files(data_root, corruptions)
 
     if missing_cifar10c:
-        if not allow_synthetic_fallback:
-            missing_text = "\n".join(f"- {path}" for path in missing_cifar10c)
-            raise FileNotFoundError(
-                "CIFAR-10-C files are missing.\n"
-                f"Missing:\n{missing_text}\n"
-                "Place the CIFAR-10-C .npy files under data/raw/cifar10c/CIFAR-10-C "
-                "or set allow_synthetic_fallback: true."
-            )
-        if dataset_cfg.get("print_fallback_warning_once", True):
-            print(
-                "[DATA] CIFAR-10-C files not found. "
-                "Using locally generated CIFAR-10 test corruptions for this evaluation."
-            )
+        missing_text = "\n".join(f"- {path}" for path in missing_cifar10c)
+        raise FileNotFoundError(
+            "CIFAR-10-C files are missing.\n"
+            f"Missing:\n{missing_text}\n"
+            "Place the CIFAR-10-C .npy files under data/raw/cifar10c/CIFAR-10-C."
+        )
 
     adaptation_cfg = cfg["adaptation"]
     adaptation_lr = adaptation_cfg["lr"]
@@ -103,7 +95,6 @@ def main() -> int:
                 severity=severity,
                 batch_size=batch_size,
                 num_workers=dataset_cfg.get("num_workers", 0),
-                allow_synthetic_fallback=allow_synthetic_fallback,
             )
             baseline = evaluate_ttt(adapter, loader, device, use_ttt=False)
             ttt = evaluate_ttt(
